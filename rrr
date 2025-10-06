@@ -6,11 +6,14 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 echo "📦 Current script directory: $DIR"
 
-# 🔧 Set GNS Redis path relative to script location (or use absolute path)
+# 🔧 Set GNS Redis path (your GNS location)
 GNS_REDIS_PATH="/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
 
-# 🔧 Set target directory (where to copy binaries) - use current directory
-TARGET_DIR="$DIR"  # Copy to same directory as script
+# 🔧 Set target directory - k8s/workspace (as required by Docker build)
+TARGET_DIR="$DIR/k8s/workspace"
+
+# 🔧 Create target directory if it doesn't exist
+mkdir -p $TARGET_DIR
 
 echo "📍 GNS Redis Path: $GNS_REDIS_PATH"
 echo "📍 Target Directory: $TARGET_DIR"
@@ -25,7 +28,7 @@ fi
 
 echo "✅ Found GNS Redis binaries"
 
-# 📦 Copy Redis binaries to target directory
+# 📦 Copy Redis binaries to k8s/workspace directory
 cp $GNS_REDIS_PATH/redis-server $TARGET_DIR/
 cp $GNS_REDIS_PATH/redis-cli $TARGET_DIR/
 cp $GNS_REDIS_PATH/redis-benchmark $TARGET_DIR/
@@ -42,6 +45,14 @@ chmod +x $TARGET_DIR/redis-check-rdb
 # 📋 List copied files
 echo "✅ Redis binaries copied successfully to: $TARGET_DIR"
 ls -la $TARGET_DIR/redis-*
+
+# 🧪 Verify files exist where Docker expects them
+echo "📋 Docker build context contents:"
+ls -la $DIR/k8s/workspace/
+
+
+
+
 task copyRedisBinaries(type: Exec) {
     description 'Copy GNS Redis binaries to project root'
     commandLine 'bash', './copy_redis_binaries.sh'
