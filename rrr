@@ -1,52 +1,47 @@
 #!/bin/bash
 set -e
 
-echo "📦 Copying GNS Redis binaries..."
+# 🔥 Get the directory where this script is located
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
-# 🔍 Use same pattern as create_venv.sh
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
-echo "📍 Current directory: $DIR"
+echo "📦 Current script directory: $DIR"
 
-# 🔍 Search for Redis binaries in common GNS locations
-REDIS_PATHS=(
-    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
-    "/gns/area/certified/com/gs/platform/redis/redis-6.2.2_fixed"
-    "/gns/area/certified/io/redis/redis-6.2.2_fixed"
-    "/gns/mw/redis/redis-6.2.2_fixed"
-)
+# 🔧 Set GNS Redis path relative to script location (or use absolute path)
+GNS_REDIS_PATH="/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
 
-FOUND_PATH=""
+# 🔧 Set target directory (where to copy binaries) - use current directory
+TARGET_DIR="$DIR"  # Copy to same directory as script
 
-for path in "${REDIS_PATHS[@]}"; do
-    if [ -f "$path/redis-server" ]; then
-        FOUND_PATH="$path"
-        echo "✅ Found Redis binaries at: $path"
-        break
-    fi
-done
+echo "📍 GNS Redis Path: $GNS_REDIS_PATH"
+echo "📍 Target Directory: $TARGET_DIR"
 
-if [ -z "$FOUND_PATH" ]; then
-    echo "❌ ERROR: Redis binaries not found in any GNS path"
-    echo "❌ Searched paths:"
-    for path in "${REDIS_PATHS[@]}"; do
-        echo "   - $path"
-    done
+# 🔍 Verify GNS binaries exist
+if [ ! -f "$GNS_REDIS_PATH/redis-server" ]; then
+    echo "❌ ERROR: GNS Redis binaries not found at $GNS_REDIS_PATH"
+    echo "❌ Available in parent directory:"
+    ls -la $(dirname $GNS_REDIS_PATH) || true
     exit 1
 fi
 
-# Copy binaries
-cp "$FOUND_PATH/redis-server" .
-cp "$FOUND_PATH/redis-cli" .
-cp "$FOUND_PATH/redis-benchmark" .
-cp "$FOUND_PATH/redis-check-aof" .
-cp "$FOUND_PATH/redis-check-rdb" .
+echo "✅ Found GNS Redis binaries"
 
-chmod +x redis-server redis-cli redis-benchmark redis-check-aof redis-check-rdb
+# 📦 Copy Redis binaries to target directory
+cp $GNS_REDIS_PATH/redis-server $TARGET_DIR/
+cp $GNS_REDIS_PATH/redis-cli $TARGET_DIR/
+cp $GNS_REDIS_PATH/redis-benchmark $TARGET_DIR/
+cp $GNS_REDIS_PATH/redis-check-aof $TARGET_DIR/
+cp $GNS_REDIS_PATH/redis-check-rdb $TARGET_DIR/
 
-echo "✅ Copied Redis binaries"
-echo "📋 Files:"
-ls -la redis-*
+# 🧪 Verify and set permissions
+chmod +x $TARGET_DIR/redis-server
+chmod +x $TARGET_DIR/redis-cli
+chmod +x $TARGET_DIR/redis-benchmark
+chmod +x $TARGET_DIR/redis-check-aof
+chmod +x $TARGET_DIR/redis-check-rdb
 
+# 📋 List copied files
+echo "✅ Redis binaries copied successfully to: $TARGET_DIR"
+ls -la $TARGET_DIR/redis-*
 task copyRedisBinaries(type: Exec) {
     description 'Copy GNS Redis binaries to project root'
     commandLine 'bash', './copy_redis_binaries.sh'
