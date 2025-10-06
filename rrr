@@ -1,0 +1,53 @@
+#!/bin/bash
+set -e
+
+echo "📦 Copying GNS Redis binaries..."
+
+# 🔧 UPDATE THIS TO YOUR ACTUAL GNS PATH
+GNS_REDIS_PATH="/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
+
+if [ ! -f "$GNS_REDIS_PATH/redis-server" ]; then
+    echo "❌ ERROR: GNS Redis binaries not found at $GNS_REDIS_PATH"
+    echo "❌ Available files:"
+    ls -la $(dirname $GNS_REDIS_PATH)
+    exit 1
+fi
+
+cp $GNS_REDIS_PATH/redis-server .
+cp $GNS_REDIS_PATH/redis-cli .
+cp $GNS_REDIS_PATH/redis-benchmark .
+cp $GNS_REDIS_PATH/redis-check-aof .
+cp $GNS_REDIS_PATH/redis-check-rdb .
+
+chmod +x redis-server redis-cli redis-benchmark redis-check-aof redis-check-rdb
+
+echo "✅ Copied Redis binaries"
+echo "📋 Files:"
+ls -la redis-*
+
+task copyRedisBinaries(type: Exec) {
+    description 'Copy GNS Redis binaries to project root'
+    commandLine 'bash', './copy_redis_binaries.sh'
+}
+
+# 👇👇👇 Copy Redis binaries (copied by Gradle)
+COPY redis-server /usr/local/bin/redis-server
+COPY redis-cli /usr/local/bin/redis-cli
+COPY redis-benchmark /usr/local/bin/redis-benchmark
+COPY redis-check-aof /usr/local/bin/redis-check-aof
+COPY redis-check-rdb /usr/local/bin/redis-check-rdb
+
+RUN chmod +x /usr/local/bin/redis-*
+
+# Create Redis config file
+RUN echo "bind 127.0.0.1" > /etc/redis.conf && \
+    echo "port 6379" >> /etc/redis.conf && \
+    echo "protected-mode no" >> /etc/redis.conf && \
+    echo "maxmemory 512mb" >> /etc/redis.conf && \
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis.conf && \
+    echo "save \"\"" >> /etc/redis.conf && \
+    echo "stop-writes-on-bgsave-error no" >> /etc/redis.conf && \
+    echo "dir /tmp" >> /etc/redis.conf && \
+    echo "logfile /tmp/redis.log" >> /etc/redis.conf
+
+
