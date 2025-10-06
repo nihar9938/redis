@@ -3,21 +3,43 @@ set -e
 
 echo "📦 Copying GNS Redis binaries..."
 
-# 🔧 UPDATE THIS TO YOUR ACTUAL GNS PATH
-GNS_REDIS_PATH="/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
+# 🔍 Use same pattern as create_venv.sh
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+echo "📍 Current directory: $DIR"
 
-if [ ! -f "$GNS_REDIS_PATH/redis-server" ]; then
-    echo "❌ ERROR: GNS Redis binaries not found at $GNS_REDIS_PATH"
-    echo "❌ Available files:"
-    ls -la $(dirname $GNS_REDIS_PATH)
+# 🔍 Search for Redis binaries in common GNS locations
+REDIS_PATHS=(
+    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
+    "/gns/area/certified/com/gs/platform/redis/redis-6.2.2_fixed"
+    "/gns/area/certified/io/redis/redis-6.2.2_fixed"
+    "/gns/mw/redis/redis-6.2.2_fixed"
+)
+
+FOUND_PATH=""
+
+for path in "${REDIS_PATHS[@]}"; do
+    if [ -f "$path/redis-server" ]; then
+        FOUND_PATH="$path"
+        echo "✅ Found Redis binaries at: $path"
+        break
+    fi
+done
+
+if [ -z "$FOUND_PATH" ]; then
+    echo "❌ ERROR: Redis binaries not found in any GNS path"
+    echo "❌ Searched paths:"
+    for path in "${REDIS_PATHS[@]}"; do
+        echo "   - $path"
+    done
     exit 1
 fi
 
-cp $GNS_REDIS_PATH/redis-server .
-cp $GNS_REDIS_PATH/redis-cli .
-cp $GNS_REDIS_PATH/redis-benchmark .
-cp $GNS_REDIS_PATH/redis-check-aof .
-cp $GNS_REDIS_PATH/redis-check-rdb .
+# Copy binaries
+cp "$FOUND_PATH/redis-server" .
+cp "$FOUND_PATH/redis-cli" .
+cp "$FOUND_PATH/redis-benchmark" .
+cp "$FOUND_PATH/redis-check-aof" .
+cp "$FOUND_PATH/redis-check-rdb" .
 
 chmod +x redis-server redis-cli redis-benchmark redis-check-aof redis-check-rdb
 
