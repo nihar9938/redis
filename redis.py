@@ -101,7 +101,6 @@ stages:
   - cloud_etech_upload
   # ... your other stages
 
-# 👇 UPDATED: Copy Redis binaries from GNS path
 .copy-redis-binaries:
   stage: copy_binaries
   tags: [linux]
@@ -109,9 +108,7 @@ stages:
   script:
     - export VERSION=`cat commit_version`
     - cd ${CI_PROJECT_DIR}
-    # 🔥 Copy Redis binaries from GNS path
     - ./copy_redis_binaries.sh
-    # 🧪 Verify binaries copied
     - ls -la redis-server redis-cli redis-benchmark redis-check-aof redis-check-rdb
   artifacts:
     paths:
@@ -135,12 +132,12 @@ stages:
     - mkdir -p ${CI_PROJECT_DIR}/k8s/workspace/apps
     - cd ${CI_PROJECT_DIR}/k8s/workspace
     
-    # 👇 Copy Redis binaries from previous stage artifacts
-    - cp ${CI_PROJECT_DIR}/redis-server .
-    - cp ${CI_PROJECT_DIR}/redis-cli .
-    - cp ${CI_PROJECT_DIR}/redis-benchmark .
-    - cp ${CI_PROJECT_DIR}/redis-check-aof .
-    - cp ${CI_PROJECT_DIR}/redis-check-rdb .
+  # 👇 Copy Redis binaries to images directory (where Dockerfile expects them)
+    - cp ${CI_PROJECT_DIR}/redis-server ${CI_PROJECT_DIR}/k8s/images/
+    - cp ${CI_PROJECT_DIR}/redis-cli ${CI_PROJECT_DIR}/k8s/images/
+    - cp ${CI_PROJECT_DIR}/redis-benchmark ${CI_PROJECT_DIR}/k8s/images/
+    - cp ${CI_PROJECT_DIR}/redis-check-aof ${CI_PROJECT_DIR}/k8s/images/
+    - cp ${CI_PROJECT_DIR}/redis-check-rdb ${CI_PROJECT_DIR}/k8s/images/
     
     # 👇 Copy your existing Dockerfile
     - cp ${CI_PROJECT_DIR}/k8s/images/Dockerfile .
