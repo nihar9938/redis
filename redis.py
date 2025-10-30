@@ -30,7 +30,14 @@ ls -la redis-*
 
 
 
+# 👇👇👇 NEW: Add Redis binaries from copy script
+COPY redis-server /usr/local/bin/redis-server
+COPY redis-cli /usr/local/bin/redis-cli
+COPY redis-benchmark /usr/local/bin/redis-benchmark
+COPY redis-check-aof /usr/local/bin/redis-check-aof
+COPY redis-check-rdb /usr/local/bin/redis-check-rdb
 
+RUN chmod +x /usr/local/bin/redis-*
 # Create Redis config file
 RUN echo "bind 127.0.0.1" > /etc/redis.conf && \
     echo "port 6379" >> /etc/redis.conf && \
