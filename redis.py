@@ -175,3 +175,52 @@ buildSite:
   only:
     - tags
     - branches
+
+
+
+
+
+#!/bin/bash
+set -e
+
+echo "📦 Finding and copying Redis binaries from GNS path..."
+
+# 🔍 Try multiple possible paths
+POSSIBLE_PATHS=(
+    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed"
+    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed"
+    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2"
+    "/gns/area/certified/com/gs/platform/redis/redis-6.2.2"
+    "/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed"
+)
+
+REDIS_PATH=""
+
+for path in "${POSSIBLE_PATHS[@]}"; do
+    if [ -f "$path/redis-server" ]; then
+        REDIS_PATH="$path"
+        echo "✅ Found Redis binaries at: $path"
+        break
+    fi
+done
+
+if [ -z "$REDIS_PATH" ]; then
+    echo "❌ ERROR: Redis binaries not found in any of the standard GNS paths"
+    echo "📋 Available Redis-related directories:"
+    find /gns -name "*redis*" -type d 2>/dev/null | head -20
+    exit 1
+fi
+
+# Copy binaries to current directory
+cp $REDIS_PATH/redis-server .
+cp $REDIS_PATH/redis-cli .
+cp $REDIS_PATH/redis-benchmark .
+cp $REDIS_PATH/redis-check-aof .
+cp $REDIS_PATH/redis-check-rdb .
+
+# Make them executable
+chmod +x redis-*
+
+echo "✅ Redis binaries copied successfully"
+echo "📋 Files:"
+ls -la redis-*
