@@ -224,3 +224,48 @@ chmod +x redis-*
 echo "✅ Redis binaries copied successfully"
 echo "📋 Files:"
 ls -la redis-*
+
+
+
+
+#!/bin/bash
+set -e
+
+echo "📥 Downloading Redis binaries from GNS web interface..."
+
+# 🔗 UPDATE THIS URL TO THE ACTUAL DOWNLOAD LINK
+REDIS_DOWNLOAD_URL="http://gns.site.gs.com/path/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed.zip"
+
+REDIS_ZIP="redis-6.2.2_fixed.zip"
+
+# Download the zip file
+echo "Downloading from: $REDIS_DOWNLOAD_URL"
+wget -q $REDIS_DOWNLOAD_URL -O $REDIS_ZIP
+
+# Extract
+echo "📦 Extracting..."
+unzip $REDIS_ZIP
+rm $REDIS_ZIP
+
+# Find the Redis directory (varies by package structure)
+REDIS_DIR=$(find . -maxdepth 1 -type d -name "*redis*" | head -1)
+
+if [ -z "$REDIS_DIR" ]; then
+    echo "❌ ERROR: Cannot find Redis directory after extraction"
+    ls -la
+    exit 1
+fi
+
+# Copy binaries from extracted directory
+cp $REDIS_DIR/redis-server .
+cp $REDIS_DIR/redis-cli .
+cp $REDIS_DIR/redis-benchmark .
+cp $REDIS_DIR/redis-check-aof .
+cp $REDIS_DIR/redis-check-rdb .
+
+# Make executable
+chmod +x redis-*
+
+echo "✅ Redis binaries downloaded and extracted successfully"
+echo "📋 Files:"
+ls -la redis-*
