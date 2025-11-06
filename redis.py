@@ -269,3 +269,122 @@ chmod +x redis-*
 echo "✅ Redis binaries downloaded and extracted successfully"
 echo "📋 Files:"
 ls -la redis-*
+--------------------
+
+    #!/usr/bin/env python3
+import os
+import urllib2
+import urllib
+import cookielib
+import zipfile
+import tarfile
+import sys
+
+# Set up authentication (if needed)
+desktop_sso = "https://authn.web.gs.com/desktopsso/Login"
+area_url = "http://prod-13.area.site.gs.com/area/repo/molimo/com/gs/platform/sdlceng/python/python-3.7.4.tar"  # 👈 UPDATE THIS TO YOUR REDIS URL
+outfile = 'redis-6.2.2_fixed.zip'  # or .tar.gz
+
+# Set up cookie handler for authentication
+cookiejar = cookielib.CookieJar()
+opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookiejar))
+opener.add_handler(urllib2.HTTPKerberosAuthHandler())
+urllib2.install_opener(opener)
+
+def retrieve_redis():
+    """Download Redis binaries from GNS"""
+    print(f"📥 Downloading Redis from: {area_url}")
+    
+    try:
+        f = urllib2.urlopen(area_url)
+        with open(outfile, 'wb') as writer:
+            writer.write(f.read())
+        print(f"✅ Downloaded to {outfile}")
+        
+        # Extract based on file type
+        if outfile.endswith('.zip'):
+            extract_zip(outfile)
+        elif outfile.endswith('.tar.gz'):
+            extract_tar_gz(outfile)
+        else:
+            print("⚠️ Unknown file type - manual extraction required")
+            
+    except Exception as e:
+        print(f"❌ Error downloading Redis: {e}")
+        sys.exit(1)
+
+def extract_zip(filename):
+    """Extract ZIP file"""
+    print(f"📦 Extracting {filename}...")
+    with zipfile.ZipFile(filename, 'r') as zip_ref:
+        zip_ref.extractall('.')
+    print(f"✅ Extracted {filename}")
+
+def extract_tar_gz(filename):
+    """Extract TAR.GZ file"""
+    print(f"📦 Extracting {filename}...")
+    with tarfile.open(filename, 'r:gz') as tar_ref:
+        tar_ref.extractall('.')
+    print(f"✅ Extracted {filename}")
+
+def main():
+    """Main function"""
+    if not os.path.exists('redis-6.2.2_fixed'):  # Check if already downloaded
+        print("🔄 Retrieving Redis 6.2.2_fixed from AREA")
+        retrieve_redis()
+    else:
+        print("✅ Using existing Redis 6.2.2_fixed from AREA")
+
+if __name__ == '__main__':
+    main()
+
+
+
+#!/bin/bash
+set -e
+
+echo "📦 Downloading Redis binaries using Python script..."
+
+# Run Python script to download Redis
+python3 download_redis.py
+
+# Copy binaries to current directory
+cp redis-6.2.2_fixed/redis-server .
+cp redis-6.2.2_fixed/redis-cli .
+cp redis-6.2.2_fixed/redis-benchmark .
+cp redis-6.2.2_fixed/redis-check-aof .
+cp redis-6.2.2_fixed/redis-check-rdb .
+
+# Make executable
+chmod +x redis-*
+
+echo "✅ Redis binaries copied successfully"
+echo "📋 Files:"
+ls -la redis-*
+
+
+
+
+#!/bin/bash
+set -e
+
+echo "📦 Downloading Redis binaries using Python script..."
+
+# Run Python script to download Redis
+python3 download_redis.py
+
+# Copy binaries to current directory
+cp redis-6.2.2_fixed/redis-server .
+cp redis-6.2.2_fixed/redis-cli .
+cp redis-6.2.2_fixed/redis-benchmark .
+cp redis-6.2.2_fixed/redis-check-aof .
+cp redis-6.2.2_fixed/redis-check-rdb .
+
+# Make executable
+chmod +x redis-*
+
+echo "✅ Redis binaries copied successfully"
+echo "📋 Files:"
+ls -la redis-*
+
+# Default command is FastAPI (for backward compatibility)
