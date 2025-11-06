@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+import os
+import urllib.request
+import urllib.parse
+import urllib.error
+import tarfile
+import sys
+
+# 🔗 UPDATE THIS URL TO YOUR ACTUAL GNS REDIS URL (should end with .tar.gz)
+REDIS_URL = "http://gns.site.gs.com/path/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/deployable.tar.gz"
+OUTPUT_FILE = 'deployable.tar.gz'  # Updated to deployable.tar.gz
+
+# 🔐 ID/PASSWORD AUTHENTICATION (UPDATE THESE)
+USERNAME = "your_username"  # Replace with your username
+PASSWORD = "your_password"  # Replace with your password
+
+def download_redis():
+    """Download Redis binaries from GNS web interface with ID/Password auth - RUNS ONCE"""
+    print(f"📥 Downloading Redis from: {REDIS_URL}")
+    
+    # Check if credentials are provided
+    if not USERNAME or not PASSWORD:
+        print("❌ ERROR: USERNAME and PASSWORD must be set")
+        sys.exit(1)
+    
+    try:
+        # 🔐 Create password manager and authentication handler
+        password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        password_mgr.add_password(None, REDIS_URL, USERNAME, PASSWORD)
+        
+        # Create authentication handler
+        auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+        
+        # Create opener with authentication
+        opener = urllib.request.build_opener(auth_handler)
+        
+        # Install the opener globally
+        urllib.request.install_opener(opener)
+        
+        # Download the file
+        print("🔐 Authenticating with username/password...")
+        request = urllib.request.Request(REDIS_URL)
+        response = urllib.request.urlopen(request)
+        
+        with open(OUTPUT_FILE, 'wb') as writer:
+            writer.write(response.read())
+        print(f"✅ Downloaded to {OUTPUT_FILE}")
+        
+        # Extract TAR.GZ file
+        extract_tar_gz(OUTPUT_FILE)
+            
+    except urllib.error.HTTPError as e:
+        print(f"❌ HTTP Error: {e.code} - {e.reason}")
+        if e.code == 401:
+            print("⚠️ Authentication failed - check your username/password")
+        elif e.code == 403:
+            print("⚠️ Access forbidden - check your permissions")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Error downloading Redis: {e}")
+        sys.exit(1)
+
+def extract_tar_gz(filename):
+    """Extract TAR.GZ file"""
+    print(f"📦 Extracting {filename}...")
+    with tarfile.open(filename, 'r:gz') as tar_ref:
+        tar_ref.extractall('.')
+    print(f"✅ Extracted {filename}")
+
+def copy_binaries_to_build_context():
+    """Copy Redis binaries from extracted directory to build context"""
+    print("📋 Copying Redis binaries to build context...")
+    
+    # Find the extracted Redis directory
+    # Since the file is deployable.tar.gz, look for the actual Redis binaries
+    redis_dirs = [d for d in os.listdir('.') if os.path.isdir(d) and 'redis' in d.lower()]
+    
+    if not redis_dirs:
+        print("❌ ERROR: Cannot find Redis directory after extraction")
+        print("📋 Directories after extraction:")
+        for d in os.listdir('.'):
+            print(f"   - {d}")
+        
+        # Look for redis-server in any subdirectory
+        for root, dirs, files in os.walk('.'):
+            if 'redis-server' in files:
+                print(f"✅ Found redis-server in: {root}")
+                # Copy from this directory
+                import shutil
+                shutil.copy2(os.path.join(root, "redis-server"), ".")
+                shutil.copy2(os.path.join(root, "redis-cli"), ".")
+                shutil.copy2(os.path.join(root, "redis-benchmark"), ".")
+                shutil.copy2(os.path.join(root, "redis-check-aof"), ".")
+                shutil.copy2(os.path.join(root, "redis-check-rdb"), ".")
+                
+                # Make executable
+                os.chmod("redis-server", 0o755)
+                os.chmod("redis-cli", 0o755)
+                os.chmod("redis-benchmark", 0o755)
+                os.chmod("redis-check-aof", 0o755)
+                os.chmod("redis-check-rdb", 0o755)
+                
+                print("✅ Redis binaries copied to build context")
+                return
+        
+        print("❌ ERROR: Cannot find Redis binaries in extracted files")
+        sys.exit(1)
+    
+    redis_dir = redis_dirs[0]  # Take the first redis directory
+    print(f"✅ Found Redis directory: {redis_dir}")
+    
+    # Copy binaries to current directory (build context)
+    import shutil
+    shutil.copy2(os.path.join(redis_dir, "redis-server"), ".")
+    shutil.copy2(os.path.join(redis_dir, "redis-cli"), ".")
+    shutil.copy2(os.path.join(redis_dir, "redis-benchmark"), ".")
+    shutil.copy2(os.path.join(redis_dir, "redis-check-aof"), ".")
+    shutil.copy2(os.path.join(redis_dir, "redis-check-rdb"), ".")
+    
+    # Make executable
+    os.chmod("redis-server", 0o755)
+    os.chmod("redis-cli", 0o755)
+    os.chmod("redis-benchmark", 0o755)
+    os.chmod("redis-check-aof", 0o755)
+    os.chmod("redis-check-rdb", 0o755)
+    
+    print("✅ Redis binaries copied to build context")
+
+def main():
+    """Main function - RUNS ONCE DURING BUILD"""
+    if not os.path.exists('redis-server') or not os.path.exists('redis-cli'):  # Check if binaries exist
+        print("🔄 Retrieving Redis from GNS deployable.tar.gz with ID/Password authentication")
+        download_redis()
+        copy_binaries_to_build_context()  # Copy after download and extract
+    else:
+        print("✅ Redis binaries already exist in build context")
+
+if __name__ == '__main__':
+    main()
+
+
+
+
+#!/bin/bash
+set -e
+
+echo "📍 Current directory: $(pwd)"
+echo "📋 Files in current directory:"
+ls -la
+
+# 🔐 SET YOUR CREDENTIALS HERE (or export them)
+export REDIS_USERNAME="${REDIS_USERNAME:-your_username}"  # Replace with your username
+export REDIS_PASSWORD="${REDIS_PASSWORD:-your_password}"  # Replace with your password
+
+# Update the credentials in the Python script
+sed -i "s|USERNAME = \"your_username\"|USERNAME = \"$REDIS_USERNAME\"|" download_redis.py
+sed -i "s|PASSWORD = \"your_password\"|PASSWORD = \"$REDIS_PASSWORD\"|" download_redis.py
+
+# Update the URL and output file in the Python script
+sed -i "s|deployable.tar.gz|deployable.tar.gz|g" download_redis.py
+
+echo "📦 Downloading Redis binaries from GNS deployable.tar.gz using ID/Password authentication..."
+
+# 🔁 RUN PYTHON SCRIPT - DOWNLOADS ONCE WITH ID/PASSWORD
+python3 download_redis.py
+
+echo "✅ Redis binaries downloaded and copied to build context"
+echo "📍 Current directory after download:"
+ls -la redis-*
