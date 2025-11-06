@@ -270,74 +270,84 @@ echo "✅ Redis binaries downloaded and extracted successfully"
 echo "📋 Files:"
 ls -la redis-*
 --------------------
-
-    #!/usr/bin/env python3
+#!/usr/bin/env python3
 import os
-import urllib2
-import urllib
-import cookielib
-import zipfile
+import urllib.request
+import urllib.parse
+import urllib.error
+import http.cookiejar
 import tarfile
 import sys
 
-# Set up authentication (if needed)
+# 🔗 UPDATE THIS URL TO YOUR ACTUAL GNS REDIS URL
+# Example: http://gns.site.gs.com/path/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed.tar
+REDIS_URL = "http://gns.site.gs.com/path/gns/area/certified/external/redis/io/redisbinary/redis-6.2.2_fixed-6.2.2_fixed/redis-6.2.2_fixed.tar"
+OUTPUT_FILE = 'redis-6.2.2_fixed.tar'
+
+# 🔐 AUTHENTICATION SETUP (like your setPythonEnv.py)
 desktop_sso = "https://authn.web.gs.com/desktopsso/Login"
-area_url = "http://prod-13.area.site.gs.com/area/repo/molimo/com/gs/platform/sdlceng/python/python-3.7.4.tar"  # 👈 UPDATE THIS TO YOUR REDIS URL
-outfile = 'redis-6.2.2_fixed.zip'  # or .tar.gz
+area_url = REDIS_URL  # Use the Redis download URL
 
-# Set up cookie handler for authentication
-cookiejar = cookielib.CookieJar()
-opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookiejar))
-opener.add_handler(urllib2.HTTPKerberosAuthHandler())
-urllib2.install_opener(opener)
+# Set up cookie handler for authentication (like your script)
+cookiejar = http.cookiejar.CookieJar()
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookiejar))
 
-def retrieve_redis():
-    """Download Redis binaries from GNS"""
-    print(f"📥 Downloading Redis from: {area_url}")
+# Note: HTTPKerberosAuthHandler is not in standard library
+# If you need Kerberos, you might need to install: pip install requests-kerberos
+# For now, using the same cookie-based approach as your script
+
+urllib.request.install_opener(opener)
+
+def download_redis():
+    """Download Redis binaries from GNS web interface - RUNS ONCE"""
+    print(f"📥 Downloading Redis from: {REDIS_URL}")
     
     try:
-        f = urllib2.urlopen(area_url)
-        with open(outfile, 'wb') as writer:
-            writer.write(f.read())
-        print(f"✅ Downloaded to {outfile}")
+        # 🔐 AUTHENTICATION STEP (like your script)
+        print("🔐 Authenticating with GNS...")
         
-        # Extract based on file type
-        if outfile.endswith('.zip'):
-            extract_zip(outfile)
-        elif outfile.endswith('.tar.gz'):
-            extract_tar_gz(outfile)
-        else:
-            print("⚠️ Unknown file type - manual extraction required")
+        # First, try to access the URL (this should trigger authentication)
+        request = urllib.request.Request(area_url)
+        response = urllib.request.urlopen(request)
+        
+        # If we get here, authentication worked
+        print("✅ Authentication successful")
+        
+        # Download the file
+        with open(OUTPUT_FILE, 'wb') as writer:
+            writer.write(response.read())
+        
+        print(f"✅ Downloaded to {OUTPUT_FILE}")
+        
+        # Extract TAR file
+        extract_tar(OUTPUT_FILE)
             
+    except urllib.error.HTTPError as e:
+        print(f"❌ HTTP Error: {e.code} - {e.reason}")
+        if e.code == 401 or e.code == 403:
+            print("⚠️ Authentication failed - check your credentials or SSO session")
+        sys.exit(1)
     except Exception as e:
         print(f"❌ Error downloading Redis: {e}")
         sys.exit(1)
 
-def extract_zip(filename):
-    """Extract ZIP file"""
+def extract_tar(filename):
+    """Extract TAR file"""
     print(f"📦 Extracting {filename}...")
-    with zipfile.ZipFile(filename, 'r') as zip_ref:
-        zip_ref.extractall('.')
-    print(f"✅ Extracted {filename}")
-
-def extract_tar_gz(filename):
-    """Extract TAR.GZ file"""
-    print(f"📦 Extracting {filename}...")
-    with tarfile.open(filename, 'r:gz') as tar_ref:
+    with tarfile.open(filename, 'r') as tar_ref:
         tar_ref.extractall('.')
     print(f"✅ Extracted {filename}")
 
 def main():
-    """Main function"""
+    """Main function - RUNS ONCE DURING BUILD"""
     if not os.path.exists('redis-6.2.2_fixed'):  # Check if already downloaded
-        print("🔄 Retrieving Redis 6.2.2_fixed from AREA")
-        retrieve_redis()
+        print("🔄 Retrieving Redis 6.2.2_fixed from GNS")
+        download_redis()
     else:
-        print("✅ Using existing Redis 6.2.2_fixed from AREA")
+        print("✅ Using existing Redis 6.2.2_fixed")
 
 if __name__ == '__main__':
     main()
-
 
 
 #!/bin/bash
