@@ -365,26 +365,23 @@ ls -la redis-*
 
 
 
-#!/bin/bash
-set -e
+COPY redis-server /usr/local/bin/redis-server
+COPY redis-cli /usr/local/bin/redis-cli
+COPY redis-benchmark /usr/local/bin/redis-benchmark
+COPY redis-check-aof /usr/local/bin/redis-check-aof
+COPY redis-check-rdb /usr/local/bin/redis-check-rdb
 
-echo "📦 Downloading Redis binaries using Python script..."
+RUN chmod +x /usr/local/bin/redis-*
 
-# Run Python script to download Redis
-python3 download_redis.py
-
-# Copy binaries to current directory
-cp redis-6.2.2_fixed/redis-server .
-cp redis-6.2.2_fixed/redis-cli .
-cp redis-6.2.2_fixed/redis-benchmark .
-cp redis-6.2.2_fixed/redis-check-aof .
-cp redis-6.2.2_fixed/redis-check-rdb .
-
-# Make executable
-chmod +x redis-*
-
-echo "✅ Redis binaries copied successfully"
-echo "📋 Files:"
-ls -la redis-*
-
-# Default command is FastAPI (for backward compatibility)
+# Create Redis config file
+RUN echo "bind 127.0.0.1" > /etc/redis.conf && \
+    echo "port 6379" >> /etc/redis.conf && \
+    echo "protected-mode no" >> /etc/redis.conf && \
+    echo "maxmemory 512mb" >> /etc/redis.conf && \
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis.conf && \
+    echo "appendonly yes" >> /etc/redis.conf && \
+    echo "appendfsync everysec" >> /etc/redis.conf && \
+    echo "save \"\"" >> /etc/redis.conf && \
+    echo "stop-writes-on-bgsave-error no" >> /etc/redis.conf && \
+    echo "dir /tmp" >> /etc/redis.conf && \
+    echo "logfile /tmp/redis.log" >> /etc/redis.conf
