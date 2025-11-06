@@ -395,3 +395,36 @@ RUN echo "bind 127.0.0.1" > /etc/redis.conf && \
     echo "stop-writes-on-bgsave-error no" >> /etc/redis.conf && \
     echo "dir /tmp" >> /etc/redis.conf && \
     echo "logfile /tmp/redis.log" >> /etc/redis.conf
+
+--------------------------------------
+#!/bin/bash
+set -e
+
+# 🔗 UPDATE TO YOUR NAS PATH
+NAS_PATH="/mnt/nas/redis-binaries"
+TAR_FILE="redis-6.2.2_fixed.tar"  # Your existing TAR file
+
+echo "📦 Extracting Redis binaries from NAS TAR file..."
+
+# Check if NAS is mounted
+if [ ! -d "$NAS_PATH" ]; then
+    echo "❌ ERROR: NAS path not accessible: $NAS_PATH"
+    exit 1
+fi
+
+# Check if TAR file exists
+if [ ! -f "$NAS_PATH/$TAR_FILE" ]; then
+    echo "❌ ERROR: TAR file not found in NAS: $NAS_PATH/$TAR_FILE"
+    echo "📋 Available files in NAS:"
+    ls -la $NAS_PATH
+    exit 1
+fi
+
+echo "✅ Found TAR file in NAS: $NAS_PATH/$TAR_FILE"
+
+# Extract and copy binaries using Python script
+python3 extract_redis_from_nas.py
+
+echo "✅ Redis binaries extracted from NAS and copied to build context"
+echo "📋 Files:"
+ls -la redis-*
