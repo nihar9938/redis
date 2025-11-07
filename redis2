@@ -167,3 +167,92 @@ python3 download_redis.py
 echo "✅ Redis binaries downloaded and copied to build context"
 echo "📍 Current directory after download:"
 ls -la redis-*
+----------------------
+# Load prod rhel8 python image, copy source code into /apps
+FROM gitlab.registry.docker.site.gs.com:443/dx/py-eng/python-images/python3.7-rhel8-prod:current
+
+EXPOSE 2395
+
+# Turns off writing .pyc files; superfluous on an ephemeral container.
+ENV PYTHONdontwritebytecode=1
+
+ARG system_account_id=$system_account_id
+ENV system_account_id=$system_account_id
+
+# Install system packages
+RUN gs-yum-enable -e aws \
+    && microdnf install vi vim htop \
+    && mkdir -p /home/ \
+    && mkdir -p /home/apps/ \
+    && mkdir -p /home/apps/logs \
+    && microdnf install \
+        bash \
+        bind-utils \
+        bzip2 \
+        curl \
+        wget \
+        tar
+
+# 👇 DOWNLOAD REDIS FROM GNS WEB INTERFACE WITH AUTHENTICATION
+RUN mkdir -p /tmp/redis-download && \
+    cd /tmp/redis-download && \
+    # 🔗 UPDATE THIS URL TO YOUR GNS WEB INTERFACE URL
+    # 🔐 UPDATE USERNAME AND PASSWORD
+    wget --user=your_username --password=your_password \
+         --header="Accept: application/octet-stream" \
+         -O deployable.tar.gz "http://gns.site.gs.com/path/to/your/redis/deployable.tar.gz" && \
+    # Extract the tar.gz file
+    tar -xzf deployable.tar.gz && \
+    # Find and copy Redis binaries (adjust path based on actual package structure)
+    # If the structure is: deployable/redis-6.2.2-fixed/bin/redis-server
+    # Or: deployable/bin/redis-server
+    # Or: redis-server directly in the archive
+    find . -name "redis-server" -exec cp {} /usr/local/bin/ \; && \
+    find . -name "redis-cli" -exec cp {} /usr/local/bin/ \; && \
+    find . -name "redis-benchmark" -exec cp {} /usr/local/bin/ \; && \
+    find . -name "redis-check-aof" -exec cp {} /usr/local/bin/ \; && \
+    find . -name "redis-check-rdb" -exec cp {} /usr/local/bin/ \; && \
+    # Set 755 permissions
+    chmod 755 /usr/local/bin/redis-* && \
+    cd / && \
+    rm -rf /tmp/redis-download
+
+# Install all required packages
+COPY apps/ /home/
+RUN chown -R $system_account_id:$system_account_id /home/
+
+WORKDIR /home/
+
+# Create virtual environment
+RUN python3 -m venv venv \
+    && source venv/bin/activate \
+    && pip3 config set global.index-url https://pypi.site.gs.com/repository/pypi-group/simple \
+    && pip3 config set global.cert /etc/ssl/certs/ca-bundle.crt \
+    && pip3 install -U pip \
+    && pip3 install datetime \
+    && pip3 install schedule \
+    && pip3 install --no-cache-dir -r requirements.txt \
+    && pip3 freeze
+
+# Add the venv to PATH
+ENV PATH="/home/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Make requests use GS certificates
+ENV REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-bundle.crt"
+ENV CA_CERT_PATH="/etc/pki/tls/certs/gs-chains.pem"
+
+# Create Redis config file
+RUN echo "bind 127.0.0.1" > /etc/redis.conf && \
+    echo "port 6379" >> /etc/redis.conf && \
+    echo "protected-mode no" >> /etc/redis.conf && \
+    echo "maxmemory 512mb" >> /etc/redis.conf && \
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis.conf && \
+    echo "appendonly yes" >> /etc/redis.conf && \
+    echo "appendfsync everysec" >> /etc/redis.conf && \
+    echo "save \"\"" >> /etc/redis.conf && \
+    echo "stop-writes-on-bgsave-error no" >> /etc/redis.conf && \
+    echo "dir /tmp" >> /etc/redis.conf && \
+    echo "logfile /tmp/redis.log" >> /etc/redis.conf
+
+# Default command is FastAPI (for backward compatibility)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "2395"]
