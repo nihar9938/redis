@@ -68,8 +68,7 @@ const Dashboard = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [error, setError] = useState('');
-  const [groupIdSearch, setGroupIdSearch] = useState('');
-  const [clusterSearch, setClusterSearch] = useState('');
+  const [searchFilters, setSearchFilters] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,12 +117,12 @@ const Dashboard = () => {
   // Apply filters
   const filteredData = React.useMemo(() => {
     return data.filter(row => {
-      const groupIdMatch = row['GroupId'] && row['GroupId'].toString().toLowerCase().includes(groupIdSearch.toLowerCase());
-      const clusterMatch = row['Cluster'] && row['Cluster'].toString().toLowerCase().includes(clusterSearch.toLowerCase());
-      
-      return groupIdMatch && clusterMatch;
+      return Object.keys(searchFilters).every(key => {
+        if (!searchFilters[key]) return true;
+        return row[key] && row[key].toString().toLowerCase().includes(searchFilters[key].toLowerCase());
+      });
     });
-  }, [data, groupIdSearch, clusterSearch]);
+  }, [data, searchFilters]);
 
   // Sorting function
   const sortedData = React.useMemo(() => {
@@ -240,6 +239,14 @@ const Dashboard = () => {
     });
   };
 
+  // Handle search filter change
+  const handleSearchChange = (key, value) => {
+    setSearchFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
   // Save all changes to Excel file (in browser memory)
   const saveDataToExcel = async (updatedData) => {
     try {
@@ -329,51 +336,6 @@ const Dashboard = () => {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
       
-      {/* Search Inputs */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '15px',
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            GroupId Search:
-          </label>
-          <input
-            type="text"
-            value={groupIdSearch}
-            onChange={(e) => setGroupIdSearch(e.target.value)}
-            placeholder="Search GroupId..."
-            style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Cluster Search:
-          </label>
-          <input
-            type="text"
-            value={clusterSearch}
-            onChange={(e) => setClusterSearch(e.target.value)}
-            placeholder="Search Cluster..."
-            style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
-      </div>
-      
       {/* Error Message */}
       {error && (
         <div style={{ 
@@ -442,10 +404,29 @@ const Dashboard = () => {
                     }}
                     onClick={() => requestSort(key)}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center' }}>
-                      {key}
-                      <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ display: 'flex', alignItems: 'center' }}>
+                        {key}
+                        <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                      </span>
+                      {/* Only show search input for GroupId and Cluster columns */}
+                      {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
+                        <input
+                          type="text"
+                          placeholder={`Search ${key}...`}
+                          value={searchFilters[key] || ''}
+                          onChange={(e) => handleSearchChange(key, e.target.value)}
+                          style={{
+                            marginTop: '5px',
+                            padding: '4px',
+                            border: '1px solid #ccc',
+                            borderRadius: '2px',
+                            fontSize: '12px',
+                            width: '100%'
+                          }}
+                        />
+                      )}
+                    </div>
                   </th>
                 ))}
               </tr>
