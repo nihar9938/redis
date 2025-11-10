@@ -7,10 +7,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [decision, setDecision] = useState('');
-  const [comment, setComment] = useState('');
-  const [updatedBy, setUpdatedBy] = useState('');
+  const [comments, setComments] = useState({}); // Track comments for each row
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,10 +105,7 @@ const Dashboard = () => {
   };
 
   // Handle checkbox selection
-  const handleCheckboxChange = (index, colIndex) => {
-    // Only process if this is the 6th column (index 5)
-    if (colIndex !== 5) return;
-    
+  const handleCheckboxChange = (index) => {
     const rowData = sortedData[index];
     const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
     
@@ -119,7 +113,14 @@ const Dashboard = () => {
     if (decisionValue.toString().toLowerCase() !== 'decrease') {
       setSelectedRows(prev => {
         if (prev.includes(index)) {
-          return prev.filter(i => i !== index);
+          // Remove from selected rows and clear comment
+          const newSelected = prev.filter(i => i !== index);
+          setComments(prevComments => {
+            const newComments = {...prevComments};
+            delete newComments[index];
+            return newComments;
+          });
+          return newSelected;
         } else {
           return [...prev, index];
         }
@@ -127,16 +128,15 @@ const Dashboard = () => {
     }
   };
 
-  // Handle "Apply Revision" button click
-  const handleApplyRevision = () => {
-    if (selectedRows.length === 0) {
-      alert('Please select at least one row to apply revision.');
-      return;
-    }
-    setShowModal(true);
+  // Handle comment input change
+  const handleCommentChange = (index, value) => {
+    setComments(prev => ({
+      ...prev,
+      [index]: value
+    }));
   };
 
-  // Save data back to Excel file
+  // Save all changes to Excel file
   const saveDataToExcel = async (updatedData) => {
     try {
       // Create a new workbook
@@ -177,10 +177,10 @@ const Dashboard = () => {
     }
   };
 
-  // Submit revision data
-  const handleSubmitRevision = async () => {
-    if (!decision || !comment || !updatedBy) {
-      alert('Please fill in all fields before submitting.');
+  // Handle bulk save
+  const handleBulkSave = async () => {
+    if (selectedRows.length === 0) {
+      alert('Please select at least one row to save.');
       return;
     }
 
@@ -195,9 +195,8 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         updatedData[originalDataIndex] = {
           ...updatedData[originalDataIndex],
-          Decision: decision,
-          Comment: comment,
-          UpdatedBy: updatedBy,
+          Comment: comments[rowIndex] || '',
+          UpdatedBy: 'System User', // Default value since no input field
           UpdatedTime: new Date().toLocaleString()
         };
       }
@@ -205,19 +204,10 @@ const Dashboard = () => {
     
     setData(updatedData);
     await saveDataToExcel(updatedData); // Save changes to Excel file
+    
+    // Reset states
     setSelectedRows([]);
-    setShowModal(false);
-    setDecision('');
-    setComment('');
-    setUpdatedBy('');
-  };
-
-  // Close modal
-  const closeModal = () => {
-    setShowModal(false);
-    setDecision('');
-    setComment('');
-    setUpdatedBy('');
+    setComments({});
   };
 
   if (loading) return <div>Loading Excel data...</div>;
@@ -229,9 +219,9 @@ const Dashboard = () => {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
       
-      {/* Apply Revision Button */}
+      {/* Save Button */}
       <button 
-        onClick={handleApplyRevision}
+        onClick={handleBulkSave}
         style={{
           marginBottom: '10px',
           padding: '8px 16px',
@@ -242,7 +232,7 @@ const Dashboard = () => {
           cursor: 'pointer'
         }}
       >
-        Apply Revision
+        Save All Changes
       </button>
       
       {data.length > 0 ? (
@@ -259,7 +249,18 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
-                {columnKeys.map((key, index) => (
+                {/* Checkbox Column Header */}
+                <th 
+                  style={{ 
+                    padding: '8px', 
+                    textAlign: 'center', 
+                    fontWeight: 'bold',
+                    border: '1px solid #ddd'
+                  }}
+                >
+                  Revision
+                </th>
+                {columnKeys.map((key) => (
                   <th 
                     key={key} 
                     style={{ 
@@ -267,14 +268,14 @@ const Dashboard = () => {
                       textAlign: 'left',
                       fontWeight: 'bold',
                       border: '1px solid #ddd',
-                      cursor: index !== 5 ? 'pointer' : 'default', // Disable cursor for checkbox column
-                      userSelect: index !== 5 ? 'none' : 'text'
+                      cursor: 'pointer',
+                      userSelect: 'none'
                     }}
-                    onClick={() => index !== 5 && requestSort(key)}
+                    onClick={() => requestSort(key)}
                   >
                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                      {index === 5 ? 'Revision' : key}
-                      {index !== 5 && <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>}
+                      {key}
+                      <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
                     </span>
                   </th>
                 ))}
@@ -291,26 +292,53 @@ const Dashboard = () => {
                     key={rowIndex} 
                     style={getRowStyle(row)}
                   >
+                    {/* Checkbox Column */}
+                    <td 
+                      style={{ 
+                        padding: '8px', 
+                        border: '1px solid #ddd',
+                        textAlign: 'center',
+                        verticalAlign: 'middle'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isRowSelected}
+                        onChange={() => handleCheckboxChange(rowIndex)}
+                        disabled={isDecrease}
+                        style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
+                      />
+                    </td>
+                    
+                    {/* Data Columns */}
                     {columnKeys.map((key, colIndex) => {
-                      // If this is the 6th column (index 5), render checkbox
-                      if (colIndex === 5) {
+                      if (key.toLowerCase() === 'comment') {
+                        // If this is the Comment column, render input if row is selected
                         return (
                           <td 
                             key={colIndex} 
                             style={{ 
                               padding: '8px', 
                               border: '1px solid #ddd',
-                              textAlign: 'center',
-                              verticalAlign: 'middle'
+                              verticalAlign: 'top'
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={isRowSelected}
-                              onChange={() => handleCheckboxChange(rowIndex, colIndex)}
-                              disabled={isDecrease}
-                              style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
-                            />
+                            {isRowSelected ? (
+                              <input
+                                type="text"
+                                value={comments[rowIndex] || row[key] || ''}
+                                onChange={(e) => handleCommentChange(rowIndex, e.target.value)}
+                                placeholder="Enter comment"
+                                style={{
+                                  width: '100%',
+                                  padding: '4px',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '2px'
+                                }}
+                              />
+                            ) : (
+                              row[key]
+                            )}
                           </td>
                         );
                       } else {
@@ -337,118 +365,6 @@ const Dashboard = () => {
         </div>
       ) : (
         <p>No data found in Excel file.</p>
-      )}
-      
-      {/* Revision Modal */}
-      {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            width: '400px',
-            maxWidth: '90%'
-          }}>
-            <h3>Apply Revision</h3>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Decision:
-              </label>
-              <select
-                value={decision}
-                onChange={(e) => setDecision(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              >
-                <option value="">Select Decision</option>
-                <option value="Option 1">Option 1</option>
-                <option value="Option 2">Option 2</option>
-              </select>
-            </div>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Comment:
-              </label>
-              <select
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              >
-                <option value="">Select Comment</option>
-                <option value="Option 1">Option 1</option>
-                <option value="Option 2">Option 2</option>
-              </select>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Updated By:
-              </label>
-              <input
-                type="text"
-                value={updatedBy}
-                onChange={(e) => setUpdatedBy(e.target.value)}
-                placeholder="Enter name"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={closeModal}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#ccc',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitRevision}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
