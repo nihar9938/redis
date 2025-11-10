@@ -6,6 +6,10 @@ const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [comment, setComment] = useState('');
+  const [updatedBy, setUpdatedBy] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -102,11 +106,129 @@ const Dashboard = () => {
     };
   };
 
+  // Handle checkbox selection
+  const handleCheckboxChange = (index) => {
+    const rowData = sortedData[index];
+    const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
+    
+    // Only allow selection if Decision is not 'Decrease'
+    if (decisionValue.toString().toLowerCase() !== 'decrease') {
+      setSelectedRows(prev => {
+        if (prev.includes(index)) {
+          return prev.filter(i => i !== index);
+        } else {
+          return [...prev, index];
+        }
+      });
+    }
+  };
+
+  // Handle "Apply Revision" button click
+  const handleApplyRevision = () => {
+    if (selectedRows.length === 0) {
+      alert('Please select at least one row to apply revision.');
+      return;
+    }
+    setShowModal(true);
+  };
+
+  // Save data back to Excel file
+  const saveDataToExcel = async (updatedData) => {
+    try {
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Get headers from the first row
+      const headers = Object.keys(updatedData[0]);
+      
+      // Convert data to array of arrays (with headers as first row)
+      const wsData = [headers, ...updatedData.map(row => headers.map(header => row[header]))];
+      
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      
+      // Write the workbook to a buffer
+      const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+      
+      // Create a Blob from the buffer
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data.xlsx'; // Same name as original file
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      alert('Data saved successfully! The updated file has been downloaded.');
+    } catch (error) {
+      console.error('Error saving Excel file:', error);
+      alert('Failed to save Excel file. Please try again.');
+    }
+  };
+
+  // Submit revision data
+  const handleSubmitRevision = async () => {
+    const updatedData = [...data];
+    
+    selectedRows.forEach(rowIndex => {
+      const originalIndex = sortedData[rowIndex];
+      const originalDataIndex = data.findIndex(row => 
+        JSON.stringify(row) === JSON.stringify(originalIndex)
+      );
+      
+      if (originalDataIndex !== -1) {
+        updatedData[originalDataIndex] = {
+          ...updatedData[originalDataIndex],
+          Comment: comment,
+          UpdatedBy: updatedBy,
+          UpdatedTime: new Date().toLocaleString()
+        };
+      }
+    });
+    
+    setData(updatedData);
+    await saveDataToExcel(updatedData); // Save changes to Excel file
+    setSelectedRows([]);
+    setShowModal(false);
+    setComment('');
+    setUpdatedBy('');
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setShowModal(false);
+    setComment('');
+    setUpdatedBy('');
+  };
+
   if (loading) return <div>Loading Excel data...</div>;
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
+      
+      {/* Apply Revision Button */}
+      <button 
+        onClick={handleApplyRevision}
+        style={{
+          marginBottom: '10px',
+          padding: '8px 16px',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Apply Revision
+      </button>
       
       {data.length > 0 ? (
         <div style={{ overflowX: 'auto' }}>
@@ -122,6 +244,10 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
+                {/* Revision Column Header */}
+                <th style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #ddd' }}>
+                  Revision
+                </th>
                 {Object.keys(data[0]).map((key) => (
                   <th 
                     key={key} 
@@ -144,30 +270,143 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedData.map((row, index) => (
-                <tr 
-                  key={index} 
-                  style={getRowStyle(row)}
-                >
-                  {Object.values(row).map((value, i) => (
-                    <td 
-                      key={i} 
-                      style={{ 
-                        padding: '8px', 
-                        border: '1px solid #ddd',
-                        verticalAlign: 'top'
-                      }}
-                    >
-                      {value}
+              {sortedData.map((row, index) => {
+                const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+                const isDecrease = decisionValue.toString().toLowerCase() === 'decrease';
+                const isRowSelected = selectedRows.includes(index);
+                
+                return (
+                  <tr 
+                    key={index} 
+                    style={getRowStyle(row)}
+                  >
+                    {/* Revision Checkbox */}
+                    <td style={{ 
+                      padding: '8px', 
+                      border: '1px solid #ddd',
+                      textAlign: 'center',
+                      verticalAlign: 'middle'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={isRowSelected}
+                        onChange={() => handleCheckboxChange(index)}
+                        disabled={isDecrease}
+                        style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
+                      />
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    
+                    {/* Data Cells */}
+                    {Object.values(row).map((value, i) => (
+                      <td 
+                        key={i} 
+                        style={{ 
+                          padding: '8px', 
+                          border: '1px solid #ddd',
+                          verticalAlign: 'top'
+                        }}
+                      >
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : (
         <p>No data found in Excel file.</p>
+      )}
+      
+      {/* Revision Modal */}
+      {showModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            width: '400px',
+            maxWidth: '90%'
+          }}>
+            <h3>Apply Revision</h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Comment:
+              </label>
+              <input
+                type="text"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Enter comment"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Updated By:
+              </label>
+              <input
+                type="text"
+                value={updatedBy}
+                onChange={(e) => setUpdatedBy(e.target.value)}
+                placeholder="Enter name"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={closeModal}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ccc',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitRevision}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
