@@ -5,36 +5,29 @@ import * as XLSX from 'xlsx';
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch the Excel file from the public folder
         const response = await fetch('/data.xlsx');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
-        const buffer = await response.arrayBuffer(); // Read as binary buffer
+        const buffer = await response.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         
-        // Get the first sheet
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
-        // Convert to JSON (header: 1 gets first row as headers)
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
         if (jsonData.length === 0) {
-          console.warn('Excel file is empty');
           setData([]);
           setLoading(false);
           return;
         }
         
-        // Extract headers and rows
         const headers = jsonData[0];
         const rows = jsonData.slice(1);
-        
-        // Convert to array of objects
         const formattedData = rows.map(row => {
           const obj = {};
           headers.forEach((header, index) => {
@@ -53,7 +46,50 @@ const Dashboard = () => {
     };
 
     fetchData();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
+
+  // Sorting function
+  const sortedData = React.useMemo(() => {
+    if (!sortConfig.key) return data;
+
+    return [...data].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      // Handle empty values
+      if (aValue === '' && bValue === '') return 0;
+      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+
+      // Try to convert to numbers for numeric comparison
+      const aNum = Number(aValue);
+      const bNum = Number(bValue);
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      // String comparison (case-insensitive)
+      const aStr = String(aValue).toLowerCase();
+      const bStr = String(bValue).toLowerCase();
+      if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [data, sortConfig]);
+
+  // Handle sort request
+  const requestSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Get sort indicator
+  const getSortIndicator = (key) => {
+    if (sortConfig.key !== key) return '↕️';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
 
   if (loading) return <div>Loading Excel data...</div>;
 
@@ -82,16 +118,22 @@ const Dashboard = () => {
                       padding: '8px', 
                       textAlign: 'left',
                       fontWeight: 'bold',
-                      border: '1px solid #ddd'
+                      border: '1px solid #ddd',
+                      cursor: 'pointer',
+                      userSelect: 'none'
                     }}
+                    onClick={() => requestSort(key)}
                   >
-                    {key}
+                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                      {key}
+                      <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                    </span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {data.map((row, index) => (
+              {sortedData.map((row, index) => (
                 <tr key={index}>
                   {Object.values(row).map((value, i) => (
                     <td 
