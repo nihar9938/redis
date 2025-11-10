@@ -5,25 +5,28 @@ const Dashboard = () => {
   const [tableData, setTableData] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Fetch and process the Excel file
     const fetchData = async () => {
       try {
         // Replace 'data.xlsx' with your actual file name
         const response = await fetch('/data.xlsx');
+        if (!response.ok) throw new Error('Failed to load file');
+        
         const arrayBuffer = await response.arrayBuffer();
-        
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
         
-        // Convert to JSON with headers
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        // Get data with headers
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: ''  // Default value for empty cells
+        });
         
         if (jsonData.length === 0) {
-          setTableData([]);
-          setHeaders([]);
-          setLoading(false);
+          setError('No data found in Excel file');
           return;
         }
 
@@ -32,16 +35,16 @@ const Dashboard = () => {
         const rows = jsonData.slice(1).map(row => {
           const obj = {};
           headers.forEach((header, index) => {
-            obj[header] = row[index] || '';
+            obj[header] = row[index] !== undefined ? row[index] : '';
           });
           return obj;
         });
 
         setHeaders(headers);
         setTableData(rows);
-      } catch (error) {
-        console.error('Error loading Excel file:', error);
-        alert('Error loading file: ' + error.message);
+      } catch (err) {
+        console.error('Error processing Excel file:', err);
+        setError('Error processing file: ' + err.message);
       } finally {
         setLoading(false);
       }
@@ -51,29 +54,60 @@ const Dashboard = () => {
   }, []);
 
   if (loading) return <div>Loading Excel data...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="dashboard">
       <h1>Excel Data Dashboard</h1>
       
-      <table className="data-table">
-        <thead>
-          <tr>
-            {headers.map(header => (
-              <th key={header}>{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {tableData.map((row, index) => (
-            <tr key={index}>
-              {headers.map(header => (
-                <td key={header}>{row[header]}</td>
+      {/* Always render table element if data exists */}
+      <div className="table-container">
+        {headers.length > 0 && tableData.length > 0 ? (
+          <table className="data-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                {headers.map((header, index) => (
+                  <th 
+                    key={index} 
+                    style={{
+                      border: '1px solid #ddd',
+                      padding: '8px',
+                      backgroundColor: '#f2f2f2',
+                      textAlign: 'left'
+                    }}
+                  >
+                    {header || `Column ${index + 1}`}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {headers.map((header, colIndex) => (
+                    <td 
+                      key={colIndex}
+                      style={{
+                        border: '1px solid #ddd',
+                        padding: '8px',
+                        textAlign: 'left'
+                      }}
+                    >
+                      {String(row[header] || '')}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
+        ) : (
+          <div>
+            <p>No valid data found in the Excel file</p>
+            <p>Headers found: {headers.length}</p>
+            <p>Data rows found: {tableData.length}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
