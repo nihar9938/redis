@@ -195,7 +195,7 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         updatedData[originalDataIndex] = {
           ...updatedData[originalDataIndex],
-          Comment: comments[rowIndex] || '',
+          Comment: comments[rowIndex] || updatedData[originalDataIndex].Comment || '',
           UpdatedBy: 'System User', // Default value since no input field
           UpdatedTime: new Date().toLocaleString()
         };
@@ -316,7 +316,7 @@ const Dashboard = () => {
                         // If this is the Comment column, render input if row is selected
                         return (
                           <td 
-                            key={colIndex} 
+                            key={`comment-${rowIndex}-${colIndex}`} 
                             style={{ 
                               padding: '8px', 
                               border: '1px solid #ddd',
@@ -326,18 +326,19 @@ const Dashboard = () => {
                             {isRowSelected ? (
                               <input
                                 type="text"
-                                value={comments[rowIndex] || row[key] || ''}
+                                value={comments[rowIndex] !== undefined ? comments[rowIndex] : row[key] || ''}
                                 onChange={(e) => handleCommentChange(rowIndex, e.target.value)}
                                 placeholder="Enter comment"
                                 style={{
                                   width: '100%',
                                   padding: '4px',
                                   border: '1px solid #ccc',
-                                  borderRadius: '2px'
+                                  borderRadius: '2px',
+                                  boxSizing: 'border-box'
                                 }}
                               />
                             ) : (
-                              row[key]
+                              row[key] || ''
                             )}
                           </td>
                         );
@@ -345,14 +346,14 @@ const Dashboard = () => {
                         // For other columns, render the data
                         return (
                           <td 
-                            key={colIndex} 
+                            key={`data-${rowIndex}-${colIndex}`} 
                             style={{ 
                               padding: '8px', 
                               border: '1px solid #ddd',
                               verticalAlign: 'top'
                             }}
                           >
-                            {row[key]}
+                            {row[key] || ''}
                           </td>
                         );
                       }
