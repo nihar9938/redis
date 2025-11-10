@@ -8,6 +8,7 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [decision, setDecision] = useState('');
   const [comment, setComment] = useState('');
   const [updatedBy, setUpdatedBy] = useState('');
 
@@ -175,6 +176,11 @@ const Dashboard = () => {
 
   // Submit revision data
   const handleSubmitRevision = async () => {
+    if (!decision || !comment || !updatedBy) {
+      alert('Please fill in all fields before submitting.');
+      return;
+    }
+
     const updatedData = [...data];
     
     selectedRows.forEach(rowIndex => {
@@ -186,6 +192,7 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         updatedData[originalDataIndex] = {
           ...updatedData[originalDataIndex],
+          Decision: decision,
           Comment: comment,
           UpdatedBy: updatedBy,
           UpdatedTime: new Date().toLocaleString()
@@ -197,6 +204,7 @@ const Dashboard = () => {
     await saveDataToExcel(updatedData); // Save changes to Excel file
     setSelectedRows([]);
     setShowModal(false);
+    setDecision('');
     setComment('');
     setUpdatedBy('');
   };
@@ -204,6 +212,7 @@ const Dashboard = () => {
   // Close modal
   const closeModal = () => {
     setShowModal(false);
+    setDecision('');
     setComment('');
     setUpdatedBy('');
   };
@@ -344,20 +353,42 @@ const Dashboard = () => {
             
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Comment:
+                Decision:
               </label>
-              <input
-                type="text"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Enter comment"
+              <select
+                value={decision}
+                onChange={(e) => setDecision(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
                   border: '1px solid #ccc',
                   borderRadius: '4px'
                 }}
-              />
+              >
+                <option value="">Select Decision</option>
+                <option value="Option 1">Option 1</option>
+                <option value="Option 2">Option 2</option>
+              </select>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Comment:
+              </label>
+              <select
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select Comment</option>
+                <option value="Option 1">Option 1</option>
+                <option value="Option 2">Option 2</option>
+              </select>
             </div>
             
             <div style={{ marginBottom: '20px' }}>
