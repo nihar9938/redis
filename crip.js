@@ -7,7 +7,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
-  const [commentInputs, setCommentInputs] = useState({}); // Track comment inputs for each row
 
   useEffect(() => {
     const fetchData = async () => {
@@ -113,16 +112,8 @@ const Dashboard = () => {
     if (decisionValue.toString().toLowerCase() !== 'decrease') {
       setSelectedRows(prev => {
         if (prev.includes(index)) {
-          // Remove from selected rows and clear comment input
-          const newSelected = prev.filter(i => i !== index);
-          setCommentInputs(prevInputs => {
-            const newInputs = {...prevInputs};
-            delete newInputs[index];
-            return newInputs;
-          });
-          return newSelected;
+          return prev.filter(i => i !== index);
         } else {
-          // Add to selected rows and initialize comment input with current value
           return [...prev, index];
         }
       });
@@ -130,11 +121,22 @@ const Dashboard = () => {
   };
 
   // Handle comment input change
-  const handleCommentChange = (index, value) => {
-    setCommentInputs(prev => ({
-      ...prev,
-      [index]: value
-    }));
+  const handleCommentChange = (rowIndex, value) => {
+    setData(prevData => {
+      const newData = [...prevData];
+      const originalIndex = sortedData[rowIndex];
+      const originalDataIndex = newData.findIndex(row => 
+        JSON.stringify(row) === JSON.stringify(originalIndex)
+      );
+      
+      if (originalDataIndex !== -1) {
+        newData[originalDataIndex] = {
+          ...newData[originalDataIndex],
+          Comment: value
+        };
+      }
+      return newData;
+    });
   };
 
   // Save all changes to Excel file
@@ -196,21 +198,16 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         updatedData[originalDataIndex] = {
           ...updatedData[originalDataIndex],
-          Comment: commentInputs[rowIndex] !== undefined 
-            ? commentInputs[rowIndex] 
-            : updatedData[originalDataIndex].Comment || '',
           UpdatedBy: 'System User', // Default value since no input field
           UpdatedTime: new Date().toLocaleString()
         };
       }
     });
     
-    setData(updatedData);
     await saveDataToExcel(updatedData); // Save changes to Excel file
     
     // Reset states
     setSelectedRows([]);
-    setCommentInputs({});
   };
 
   if (loading) return <div>Loading Excel data...</div>;
@@ -329,9 +326,7 @@ const Dashboard = () => {
                             {isRowSelected ? (
                               <input
                                 type="text"
-                                value={commentInputs[rowIndex] !== undefined 
-                                  ? commentInputs[rowIndex] 
-                                  : row[key] || ''}
+                                value={row[key] || ''}
                                 onChange={(e) => handleCommentChange(rowIndex, e.target.value)}
                                 placeholder="Enter comment"
                                 style={{
