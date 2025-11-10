@@ -91,6 +91,17 @@ const Dashboard = () => {
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
+  // Check if Decision column exists and has 'Decrease' value
+  const getRowStyle = (row) => {
+    const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+    const isDecrease = decisionValue.toString().toLowerCase() === 'decrease';
+    
+    return {
+      backgroundColor: isDecrease ? '#e0e0e0' : 'white',
+      opacity: isDecrease ? 0.8 : 1
+    };
+  };
+
   if (loading) return <div>Loading Excel data...</div>;
 
   return (
@@ -134,7 +145,10 @@ const Dashboard = () => {
             </thead>
             <tbody>
               {sortedData.map((row, index) => (
-                <tr key={index}>
+                <tr 
+                  key={index} 
+                  style={getRowStyle(row)}
+                >
                   {Object.values(row).map((value, i) => (
                     <td 
                       key={i} 
