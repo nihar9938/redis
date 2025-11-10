@@ -7,7 +7,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
-  const [comments, setComments] = useState({}); // Track comments for each row
+  const [commentInputs, setCommentInputs] = useState({}); // Track comment inputs for each row
 
   useEffect(() => {
     const fetchData = async () => {
@@ -113,15 +113,16 @@ const Dashboard = () => {
     if (decisionValue.toString().toLowerCase() !== 'decrease') {
       setSelectedRows(prev => {
         if (prev.includes(index)) {
-          // Remove from selected rows and clear comment
+          // Remove from selected rows and clear comment input
           const newSelected = prev.filter(i => i !== index);
-          setComments(prevComments => {
-            const newComments = {...prevComments};
-            delete newComments[index];
-            return newComments;
+          setCommentInputs(prevInputs => {
+            const newInputs = {...prevInputs};
+            delete newInputs[index];
+            return newInputs;
           });
           return newSelected;
         } else {
+          // Add to selected rows and initialize comment input with current value
           return [...prev, index];
         }
       });
@@ -130,7 +131,7 @@ const Dashboard = () => {
 
   // Handle comment input change
   const handleCommentChange = (index, value) => {
-    setComments(prev => ({
+    setCommentInputs(prev => ({
       ...prev,
       [index]: value
     }));
@@ -195,7 +196,9 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         updatedData[originalDataIndex] = {
           ...updatedData[originalDataIndex],
-          Comment: comments[rowIndex] || updatedData[originalDataIndex].Comment || '',
+          Comment: commentInputs[rowIndex] !== undefined 
+            ? commentInputs[rowIndex] 
+            : updatedData[originalDataIndex].Comment || '',
           UpdatedBy: 'System User', // Default value since no input field
           UpdatedTime: new Date().toLocaleString()
         };
@@ -207,7 +210,7 @@ const Dashboard = () => {
     
     // Reset states
     setSelectedRows([]);
-    setComments({});
+    setCommentInputs({});
   };
 
   if (loading) return <div>Loading Excel data...</div>;
@@ -326,7 +329,9 @@ const Dashboard = () => {
                             {isRowSelected ? (
                               <input
                                 type="text"
-                                value={comments[rowIndex] !== undefined ? comments[rowIndex] : row[key] || ''}
+                                value={commentInputs[rowIndex] !== undefined 
+                                  ? commentInputs[rowIndex] 
+                                  : row[key] || ''}
                                 onChange={(e) => handleCommentChange(rowIndex, e.target.value)}
                                 placeholder="Enter comment"
                                 style={{
