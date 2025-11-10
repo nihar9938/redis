@@ -67,53 +67,48 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [currentFile, setCurrentFile] = useState(''); // Track current file
+  const [currentFile, setCurrentFile] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const findLatestExcelFile = async () => {
       try {
         setLoading(true);
+        setError('');
         
-        // List of possible Excel files in public folder
-        const possibleFiles = [
-          'data.xlsx',
-          'data(1).xlsx',
-          'data(2).xlsx',
-          'data(3).xlsx',
-          'data(4).xlsx',
-          'data(5).xlsx',
-          'data(6).xlsx',
-          'data(7).xlsx',
-          'data(8).xlsx',
-          'data(9).xlsx',
-          'data(10).xlsx'
-        ];
-
-        // Find the file with the highest number
+        // Start with the base file
         let latestFile = null;
         let highestNumber = -1;
 
-        for (const fileName of possibleFiles) {
+        // First check for the base file (data.xlsx)
+        try {
+          const baseResponse = await fetch('/data.xlsx');
+          if (baseResponse.ok) {
+            latestFile = 'data.xlsx';
+            highestNumber = 0;
+          }
+        } catch (error) {
+          console.log('data.xlsx not found');
+        }
+
+        // Then check for numbered files with space format: data (1).xlsx, data (2).xlsx, etc.
+        let i = 1;
+        while (true) {
+          const fileName = `data (${i}).xlsx`;
           try {
             const response = await fetch(`/${fileName}`);
             if (response.ok) {
-              // Extract number from filename (e.g., data(3).xlsx -> 3)
-              const match = fileName.match(/data\((\d+)\)\.xlsx/);
-              if (match) {
-                const number = parseInt(match[1], 10);
-                if (number > highestNumber) {
-                  highestNumber = number;
-                  latestFile = fileName;
-                }
-              } else if (fileName === 'data.xlsx' && highestNumber === -1) {
-                // If no numbered files found, use the base file
-                latestFile = fileName;
-                highestNumber = 0;
-              }
+              // This file exists, update latest
+              latestFile = fileName;
+              highestNumber = i;
+              i++;
+            } else {
+              // No more files, break the loop
+              break;
             }
           } catch (error) {
-            // File doesn't exist, continue to next
-            continue;
+            // File doesn't exist, break the loop
+            break;
           }
         }
 
@@ -121,11 +116,11 @@ const Dashboard = () => {
           setCurrentFile(latestFile);
           await loadExcelFile(latestFile);
         } else {
-          console.error('No Excel files found in public folder');
+          setError('No Excel files found in public folder (data.xlsx or data (number).xlsx)');
           setLoading(false);
         }
       } catch (error) {
-        console.error('Error finding latest Excel file:', error);
+        setError('Error finding latest Excel file: ' + error.message);
         setLoading(false);
       }
     };
@@ -144,15 +139,35 @@ const Dashboard = () => {
       
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
+      
+      // Get all cell values
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
       if (jsonData.length === 0) {
+        setError('Excel file is empty');
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Check if we have at least 2 rows (header + data)
+      if (jsonData.length < 2) {
+        setError('Excel file has no data rows');
         setData([]);
         setLoading(false);
         return;
       }
       
       const headers = jsonData[0];
+      
+      // Validate headers
+      if (!headers || headers.length === 0) {
+        setError('No headers found in Excel file');
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      
       const rows = jsonData.slice(1);
       const formattedData = rows.map(row => {
         const obj = {};
@@ -164,8 +179,9 @@ const Dashboard = () => {
       
       setData(formattedData);
     } catch (error) {
+      setError('Error loading Excel file: ' + error.message);
       console.error('Error loading Excel file:', error);
-      alert('Failed to load Excel file. Please check if the file exists in the public folder.');
+      setLoading(false);
     } finally {
       setLoading(false);
     }
@@ -321,15 +337,15 @@ const Dashboard = () => {
       // Show success modal instead of alert
       setShowSuccessModal(true);
     } catch (error) {
+      setError('Error saving Excel file: ' + error.message);
       console.error('Error saving Excel file:', error);
-      alert('Failed to save Excel file. Please try again.');
     }
   };
 
   // Handle bulk save
   const handleBulkSave = async () => {
     if (selectedRows.length === 0) {
-      alert('Please select at least one row to save.');
+      setError('Please select at least one row to save.');
       return;
     }
 
@@ -371,15 +387,31 @@ const Dashboard = () => {
       <h2>Excel Data Dashboard</h2>
       
       {/* Current File Info */}
-      <div style={{ 
-        marginBottom: '10px', 
-        padding: '8px', 
-        backgroundColor: '#f0f0f0', 
-        borderRadius: '4px',
-        fontSize: '14px'
-      }}>
-        Current File: <strong>{currentFile}</strong>
-      </div>
+      {currentFile && (
+        <div style={{ 
+          marginBottom: '10px', 
+          padding: '8px', 
+          backgroundColor: '#f0f0f0', 
+          borderRadius: '4px',
+          fontSize: '14px'
+        }}>
+          Current File: <strong>{currentFile}</strong>
+        </div>
+      )}
+      
+      {/* Error Message */}
+      {error && (
+        <div style={{ 
+          marginBottom: '10px', 
+          padding: '8px', 
+          backgroundColor: '#ffdddd', 
+          border: '1px solid #ff9999', 
+          borderRadius: '4px',
+          color: '#cc0000'
+        }}>
+          {error}
+        </div>
+      )}
       
       {/* Save Button */}
       <button 
