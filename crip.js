@@ -1,6 +1,34 @@
 // src/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+
+// Custom Input Component to handle React reconciliation issues
+const CommentInput = ({ value, onChange, placeholder, rowIndex }) => {
+  const inputRef = useRef(null);
+  
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.value = value || '';
+    }
+  }, [value, rowIndex]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      defaultValue={value || ''}
+      onChange={onChange}
+      placeholder={placeholder}
+      style={{
+        width: '100%',
+        padding: '4px',
+        border: '1px solid #ccc',
+        borderRadius: '2px',
+        boxSizing: 'border-box'
+      }}
+    />
+  );
+};
 
 const Dashboard = () => {
   const [data, setData] = useState([]);
@@ -121,7 +149,9 @@ const Dashboard = () => {
   };
 
   // Handle comment input change
-  const handleCommentChange = (rowIndex, value) => {
+  const handleCommentChange = (rowIndex, event) => {
+    const newValue = event.target.value;
+    
     setData(prevData => {
       const newData = [...prevData];
       const originalIndex = sortedData[rowIndex];
@@ -132,7 +162,7 @@ const Dashboard = () => {
       if (originalDataIndex !== -1) {
         newData[originalDataIndex] = {
           ...newData[originalDataIndex],
-          Comment: value
+          Comment: newValue
         };
       }
       return newData;
@@ -324,18 +354,11 @@ const Dashboard = () => {
                             }}
                           >
                             {isRowSelected ? (
-                              <input
-                                type="text"
+                              <CommentInput
                                 value={row[key] || ''}
-                                onChange={(e) => handleCommentChange(rowIndex, e.target.value)}
+                                onChange={(e) => handleCommentChange(rowIndex, e)}
                                 placeholder="Enter comment"
-                                style={{
-                                  width: '100%',
-                                  padding: '4px',
-                                  border: '1px solid #ccc',
-                                  borderRadius: '2px',
-                                  boxSizing: 'border-box'
-                                }}
+                                rowIndex={rowIndex}
                               />
                             ) : (
                               row[key] || ''
