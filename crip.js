@@ -1,102 +1,118 @@
+// src/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const Dashboard = () => {
-  const [tableData, setTableData] = useState([]);
-  const [headers, setHeaders] = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Fetch the Excel file from the public folder
         const response = await fetch('/data.xlsx');
-        if (!response.ok) throw new Error('Failed to load file');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
-        const arrayBuffer = await response.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+        const buffer = await response.arrayBuffer(); // Read as binary buffer
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
         
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        // Get the first sheet
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert to JSON (header: 1 gets first row as headers)
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
         if (jsonData.length === 0) {
-          setError('No data found in Excel file');
+          console.warn('Excel file is empty');
+          setData([]);
+          setLoading(false);
           return;
         }
-
+        
+        // Extract headers and rows
         const headers = jsonData[0];
-        const rows = jsonData.slice(1).map(row => {
+        const rows = jsonData.slice(1);
+        
+        // Convert to array of objects
+        const formattedData = rows.map(row => {
           const obj = {};
           headers.forEach((header, index) => {
-            obj[header] = row[index] !== undefined ? row[index] : '';
+            obj[header] = row[index] != null ? row[index] : '';
           });
           return obj;
         });
-
-        setHeaders(headers);
-        setTableData(rows);
-      } catch (err) {
-        console.error('Error processing Excel file:', err);
-        setError('Error processing file: ' + err.message);
+        
+        setData(formattedData);
+      } catch (error) {
+        console.error('Error loading Excel file:', error);
+        alert('Failed to load Excel file. Please check if data.xlsx exists in the public folder.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, []); // Empty dependency array means this runs once on mount
 
-  if (loading) return <div style={{ padding: '20px' }}>Loading Excel data...</div>;
-  if (error) return <div style={{ padding: '20px', color: 'red' }}>Error: {error}</div>;
+  if (loading) return <div>Loading Excel data...</div>;
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Excel Data Dashboard</h1>
+      <h2>Excel Data Dashboard</h2>
       
-      <table 
-        style={{ 
-          borderCollapse: 'collapse', 
-          width: '100%', 
-          border: '1px solid #ddd' 
-        }}
-      >
-        <thead>
-          <tr>
-            {headers.map((header, index) => (
-              <th 
-                key={index} 
-                style={{
-                  border: '1px solid #ddd',
-                  padding: '8px',
-                  backgroundColor: '#f2f2f2',
-                  textAlign: 'left'
-                }}
-              >
-                {header || `Column ${index + 1}`}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {tableData.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {headers.map((header, colIndex) => (
-                <td 
-                  key={colIndex}
-                  style={{
-                    border: '1px solid #ddd',
-                    padding: '8px',
-                    textAlign: 'left'
-                  }}
-                >
-                  {String(row[header] || '')}
-                </td>
+      {data.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table 
+            border="1" 
+            cellPadding="5" 
+            cellSpacing="0" 
+            style={{ 
+              borderCollapse: 'collapse', 
+              width: '100%', 
+              backgroundColor: 'white' 
+            }}
+          >
+            <thead>
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                {Object.keys(data[0]).map((key) => (
+                  <th 
+                    key={key} 
+                    style={{ 
+                      padding: '8px', 
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      border: '1px solid #ddd'
+                    }}
+                  >
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((row, index) => (
+                <tr key={index}>
+                  {Object.values(row).map((value, i) => (
+                    <td 
+                      key={i} 
+                      style={{ 
+                        padding: '8px', 
+                        border: '1px solid #ddd',
+                        verticalAlign: 'top'
+                      }}
+                    >
+                      {value}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p>No data found in Excel file.</p>
+      )}
     </div>
   );
 };
