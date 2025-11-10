@@ -67,125 +67,51 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [currentFile, setCurrentFile] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const findLatestExcelFile = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         setError('');
         
-        // Start with the base file
-        let latestFile = null;
-        let highestNumber = -1;
-
-        // First check for the base file (data.xlsx)
-        try {
-          const baseResponse = await fetch('/data.xlsx');
-          if (baseResponse.ok) {
-            latestFile = 'data.xlsx';
-            highestNumber = 0;
-          }
-        } catch (error) {
-          console.log('data.xlsx not found');
-        }
-
-        // Then check for numbered files with space format: data (1).xlsx, data (2).xlsx, etc.
-        let i = 1;
-        while (true) {
-          const fileName = `data (${i}).xlsx`;
-          try {
-            const response = await fetch(`/${fileName}`);
-            if (response.ok) {
-              // This file exists, update latest
-              latestFile = fileName;
-              highestNumber = i;
-              i++;
-            } else {
-              // No more files, break the loop
-              break;
-            }
-          } catch (error) {
-            // File doesn't exist, break the loop
-            break;
-          }
-        }
-
-        if (latestFile) {
-          setCurrentFile(latestFile);
-          await loadExcelFile(latestFile);
-        } else {
-          setError('No Excel files found in public folder (data.xlsx or data (number).xlsx)');
+        const response = await fetch('/data.xlsx');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const buffer = await response.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (jsonData.length === 0) {
+          setData([]);
           setLoading(false);
+          return;
         }
+        
+        const headers = jsonData[0];
+        const rows = jsonData.slice(1);
+        const formattedData = rows.map(row => {
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] != null ? row[index] : '';
+          });
+          return obj;
+        });
+        
+        setData(formattedData);
       } catch (error) {
-        setError('Error finding latest Excel file: ' + error.message);
+        setError('Error loading Excel file: ' + error.message);
+        console.error('Error loading Excel file:', error);
+      } finally {
         setLoading(false);
       }
     };
 
-    findLatestExcelFile();
+    fetchData();
   }, []);
-
-  // Load Excel file
-  const loadExcelFile = async (fileName) => {
-    try {
-      const response = await fetch(`/${fileName}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const buffer = await response.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-      
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      // Get all cell values
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      if (jsonData.length === 0) {
-        setError('Excel file is empty');
-        setData([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Check if we have at least 2 rows (header + data)
-      if (jsonData.length < 2) {
-        setError('Excel file has no data rows');
-        setData([]);
-        setLoading(false);
-        return;
-      }
-      
-      const headers = jsonData[0];
-      
-      // Validate headers
-      if (!headers || headers.length === 0) {
-        setError('No headers found in Excel file');
-        setData([]);
-        setLoading(false);
-        return;
-      }
-      
-      const rows = jsonData.slice(1);
-      const formattedData = rows.map(row => {
-        const obj = {};
-        headers.forEach((header, index) => {
-          obj[header] = row[index] != null ? row[index] : '';
-        });
-        return obj;
-      });
-      
-      setData(formattedData);
-    } catch (error) {
-      setError('Error loading Excel file: ' + error.message);
-      console.error('Error loading Excel file:', error);
-      setLoading(false);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Sorting function
   const sortedData = React.useMemo(() => {
@@ -300,7 +226,7 @@ const Dashboard = () => {
     });
   };
 
-  // Save all changes to Excel file
+  // Save all changes to Excel file (in browser memory)
   const saveDataToExcel = async (updatedData) => {
     try {
       // Create a new workbook
@@ -334,6 +260,9 @@ const Dashboard = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
+      // Update the data in browser memory (this will refresh the table)
+      setData(updatedData);
+      
       // Show success modal instead of alert
       setShowSuccessModal(true);
     } catch (error) {
@@ -366,7 +295,7 @@ const Dashboard = () => {
       }
     });
     
-    await saveDataToExcel(updatedData); // Save changes to Excel file
+    await saveDataToExcel(updatedData); // Save changes to Excel file and update browser memory
     
     // Reset states
     setSelectedRows([]);
@@ -385,19 +314,6 @@ const Dashboard = () => {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
-      
-      {/* Current File Info */}
-      {currentFile && (
-        <div style={{ 
-          marginBottom: '10px', 
-          padding: '8px', 
-          backgroundColor: '#f0f0f0', 
-          borderRadius: '4px',
-          fontSize: '14px'
-        }}>
-          Current File: <strong>{currentFile}</strong>
-        </div>
-      )}
       
       {/* Error Message */}
       {error && (
