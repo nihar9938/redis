@@ -35,6 +35,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -203,7 +204,8 @@ const Dashboard = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
-      alert('Data saved successfully! The updated file has been downloaded.');
+      // Show success modal instead of alert
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error saving Excel file:', error);
       alert('Failed to save Excel file. Please try again.');
@@ -238,6 +240,11 @@ const Dashboard = () => {
     
     // Reset states
     setSelectedRows([]);
+  };
+
+  // Close success modal
+  const closeSuccessModal = () => {
+    setShowSuccessModal(false);
   };
 
   if (loading) return <div>Loading Excel data...</div>;
@@ -389,6 +396,51 @@ const Dashboard = () => {
         </div>
       ) : (
         <p>No data found in Excel file.</p>
+      )}
+      
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            width: '400px',
+            maxWidth: '90%',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
+              Success!
+            </h3>
+            <p style={{ marginBottom: '20px' }}>
+              Data saved successfully! The updated file has been downloaded.
+            </p>
+            <button
+              onClick={closeSuccessModal}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
