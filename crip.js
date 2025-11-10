@@ -67,47 +67,109 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [currentFile, setCurrentFile] = useState(''); // Track current file
 
   useEffect(() => {
-    const fetchData = async () => {
+    const findLatestExcelFile = async () => {
       try {
-        const response = await fetch('/data.xlsx');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        setLoading(true);
         
-        const buffer = await response.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
-        
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (jsonData.length === 0) {
-          setData([]);
-          setLoading(false);
-          return;
+        // List of possible Excel files in public folder
+        const possibleFiles = [
+          'data.xlsx',
+          'data(1).xlsx',
+          'data(2).xlsx',
+          'data(3).xlsx',
+          'data(4).xlsx',
+          'data(5).xlsx',
+          'data(6).xlsx',
+          'data(7).xlsx',
+          'data(8).xlsx',
+          'data(9).xlsx',
+          'data(10).xlsx'
+        ];
+
+        // Find the file with the highest number
+        let latestFile = null;
+        let highestNumber = -1;
+
+        for (const fileName of possibleFiles) {
+          try {
+            const response = await fetch(`/${fileName}`);
+            if (response.ok) {
+              // Extract number from filename (e.g., data(3).xlsx -> 3)
+              const match = fileName.match(/data\((\d+)\)\.xlsx/);
+              if (match) {
+                const number = parseInt(match[1], 10);
+                if (number > highestNumber) {
+                  highestNumber = number;
+                  latestFile = fileName;
+                }
+              } else if (fileName === 'data.xlsx' && highestNumber === -1) {
+                // If no numbered files found, use the base file
+                latestFile = fileName;
+                highestNumber = 0;
+              }
+            }
+          } catch (error) {
+            // File doesn't exist, continue to next
+            continue;
+          }
         }
-        
-        const headers = jsonData[0];
-        const rows = jsonData.slice(1);
-        const formattedData = rows.map(row => {
-          const obj = {};
-          headers.forEach((header, index) => {
-            obj[header] = row[index] != null ? row[index] : '';
-          });
-          return obj;
-        });
-        
-        setData(formattedData);
+
+        if (latestFile) {
+          setCurrentFile(latestFile);
+          await loadExcelFile(latestFile);
+        } else {
+          console.error('No Excel files found in public folder');
+          setLoading(false);
+        }
       } catch (error) {
-        console.error('Error loading Excel file:', error);
-        alert('Failed to load Excel file. Please check if data.xlsx exists in the public folder.');
-      } finally {
+        console.error('Error finding latest Excel file:', error);
         setLoading(false);
       }
     };
 
-    fetchData();
+    findLatestExcelFile();
   }, []);
+
+  // Load Excel file
+  const loadExcelFile = async (fileName) => {
+    try {
+      const response = await fetch(`/${fileName}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const buffer = await response.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (jsonData.length === 0) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      
+      const headers = jsonData[0];
+      const rows = jsonData.slice(1);
+      const formattedData = rows.map(row => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] != null ? row[index] : '';
+        });
+        return obj;
+      });
+      
+      setData(formattedData);
+    } catch (error) {
+      console.error('Error loading Excel file:', error);
+      alert('Failed to load Excel file. Please check if the file exists in the public folder.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Sorting function
   const sortedData = React.useMemo(() => {
@@ -250,7 +312,7 @@ const Dashboard = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'data.xlsx'; // Same name as original file
+      a.download = 'data.xlsx'; // Always download as data.xlsx
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -307,6 +369,17 @@ const Dashboard = () => {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
+      
+      {/* Current File Info */}
+      <div style={{ 
+        marginBottom: '10px', 
+        padding: '8px', 
+        backgroundColor: '#f0f0f0', 
+        borderRadius: '4px',
+        fontSize: '14px'
+      }}>
+        Current File: <strong>{currentFile}</strong>
+      </div>
       
       {/* Save Button */}
       <button 
