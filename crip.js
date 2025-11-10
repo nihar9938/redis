@@ -68,6 +68,8 @@ const Dashboard = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [error, setError] = useState('');
+  const [groupIdSearch, setGroupIdSearch] = useState('');
+  const [clusterSearch, setClusterSearch] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -113,11 +115,21 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
+  // Apply filters
+  const filteredData = React.useMemo(() => {
+    return data.filter(row => {
+      const groupIdMatch = row['GroupId'] && row['GroupId'].toString().toLowerCase().includes(groupIdSearch.toLowerCase());
+      const clusterMatch = row['Cluster'] && row['Cluster'].toString().toLowerCase().includes(clusterSearch.toLowerCase());
+      
+      return groupIdMatch && clusterMatch;
+    });
+  }, [data, groupIdSearch, clusterSearch]);
+
   // Sorting function
   const sortedData = React.useMemo(() => {
-    if (!sortConfig.key) return data;
+    if (!sortConfig.key) return filteredData;
 
-    return [...data].sort((a, b) => {
+    return [...filteredData].sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 
@@ -140,7 +152,7 @@ const Dashboard = () => {
       if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [data, sortConfig]);
+  }, [filteredData, sortConfig]);
 
   // Handle sort request
   const requestSort = (key) => {
@@ -156,14 +168,15 @@ const Dashboard = () => {
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  // Check if Decision column exists and has 'Decrease' value
+  // Check if Decision column exists and has 'Decrease' or 'No Change' value
   const getRowStyle = (row) => {
     const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-    const isDecrease = decisionValue.toString().toLowerCase() === 'decrease';
+    const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
+                       decisionValue.toString().toLowerCase() === 'no change';
     
     return {
-      backgroundColor: isDecrease ? '#e0e0e0' : 'white',
-      opacity: isDecrease ? 0.8 : 1
+      backgroundColor: isGreyedOut ? '#e0e0e0' : 'white',
+      opacity: isGreyedOut ? 0.8 : 1
     };
   };
 
@@ -172,8 +185,9 @@ const Dashboard = () => {
     const rowData = sortedData[index];
     const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
     
-    // Only allow selection if Decision is not 'Decrease'
-    if (decisionValue.toString().toLowerCase() !== 'decrease') {
+    // Only allow selection if Decision is not 'Decrease' or 'No Change'
+    if (decisionValue.toString().toLowerCase() !== 'decrease' && 
+        decisionValue.toString().toLowerCase() !== 'no change') {
       setSelectedRows(prev => {
         if (prev.includes(index)) {
           return prev.filter(i => i !== index);
@@ -315,6 +329,51 @@ const Dashboard = () => {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
       
+      {/* Search Inputs */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '10px', 
+        marginBottom: '15px',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            GroupId Search:
+          </label>
+          <input
+            type="text"
+            value={groupIdSearch}
+            onChange={(e) => setGroupIdSearch(e.target.value)}
+            placeholder="Search GroupId..."
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            Cluster Search:
+          </label>
+          <input
+            type="text"
+            value={clusterSearch}
+            onChange={(e) => setClusterSearch(e.target.value)}
+            placeholder="Search Cluster..."
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+      </div>
+      
       {/* Error Message */}
       {error && (
         <div style={{ 
@@ -394,7 +453,8 @@ const Dashboard = () => {
             <tbody>
               {sortedData.map((row, rowIndex) => {
                 const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-                const isDecrease = decisionValue.toString().toLowerCase() === 'decrease';
+                const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
+                                   decisionValue.toString().toLowerCase() === 'no change';
                 const isRowSelected = selectedRows.includes(rowIndex);
                 
                 return (
@@ -415,8 +475,8 @@ const Dashboard = () => {
                         type="checkbox"
                         checked={isRowSelected}
                         onChange={() => handleCheckboxChange(rowIndex)}
-                        disabled={isDecrease}
-                        style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
+                        disabled={isGreyedOut}
+                        style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
                       />
                     </td>
                     
