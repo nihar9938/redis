@@ -1,15 +1,26 @@
 // src/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState(''); // ← New state for search
+
+  // Normalize and find cluster column name (case-insensitive)
+  const findClusterColumn = (headers) => {
+    const clusterKey = headers.find(
+      key => typeof key === 'string' && key.trim().toLowerCase() === 'cluster'
+    );
+    return clusterKey || null;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setError(null);
         const response = await fetch('/data.xlsx');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
@@ -20,14 +31,16 @@ const Dashboard = () => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        if (jsonData.length === 0) {
+        if (jsonData.length === 0 || !jsonData[0]?.length) {
           setData([]);
           setLoading(false);
           return;
         }
         
-        const headers = jsonData[0];
+        const rawHeaders = jsonData[0];
+        const headers = rawHeaders.map(h => (h != null ? String(h) : ''));
         const rows = jsonData.slice(1);
+        
         const formattedData = rows.map(row => {
           const obj = {};
           headers.forEach((header, index) => {
@@ -39,7 +52,7 @@ const Dashboard = () => {
         setData(formattedData);
       } catch (error) {
         console.error('Error loading Excel file:', error);
-        alert('Failed to load Excel file. Please check if data.xlsx exists in the public folder.');
+        setError('Failed to load Excel file. Please check if data.xlsx exists in the public folder.');
       } finally {
         setLoading(false);
       }
@@ -48,36 +61,53 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  // Sorting function
-  const sortedData = React.useMemo(() => {
-    if (!sortConfig.key) return data;
+  // Find cluster column once data is loaded
+  const clusterColumn = useMemo(() => {
+    if (data.length > 0) {
+      return findClusterColumn(Object.keys(data[0]));
+    }
+    return null;
+  }, [data]);
 
-    return [...data].sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
+  // Sorted + Filtered data
+  const filteredAndSortedData = useMemo(() => {
+    let result = [...data];
 
-      // Handle empty values
-      if (aValue === '' && bValue === '') return 0;
-      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
-      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+    // Apply search filter (only if cluster column exists)
+    if (clusterColumn && searchTerm.trim() !== '') {
+      const term = searchTerm.trim().toLowerCase();
+      result = result.filter(row =>
+        String(row[clusterColumn]).toLowerCase().includes(term)
+      );
+    }
 
-      // Try to convert to numbers for numeric comparison
-      const aNum = Number(aValue);
-      const bNum = Number(bValue);
-      if (!isNaN(aNum) && !isNaN(bNum)) {
-        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
-      }
+    // Apply sorting
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
 
-      // String comparison (case-insensitive)
-      const aStr = String(aValue).toLowerCase();
-      const bStr = String(bValue).toLowerCase();
-      if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [data, sortConfig]);
+        if (aValue === '' && bValue === '') return 0;
+        if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
+        if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
 
-  // Handle sort request
+        const aNum = Number(aValue);
+        const bNum = Number(bValue);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+
+        const aStr = String(aValue).toLowerCase();
+        const bStr = String(bValue).toLowerCase();
+        if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [data, sortConfig, searchTerm, clusterColumn]);
+
   const requestSort = (key) => {
     setSortConfig(prevConfig => ({
       key,
@@ -85,19 +115,61 @@ const Dashboard = () => {
     }));
   };
 
-  // Get sort indicator
   const getSortIndicator = (key) => {
     if (sortConfig.key !== key) return '↕️';
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  if (loading) return <div>Loading Excel data...</div>;
+  if (loading) return <div style={{ padding: '20px' }}>Loading Excel data...</div>;
+  if (error) return <div style={{ color: 'red', padding: '20px' }}>{error}</div>;
+
+  // Safely get columns
+  const columns = data.length > 0 ? Object.keys(data[0]) : [];
+
+  if (columns.length === 0) {
+    return <p style={{ padding: '20px' }}>No data found in Excel file.</p>;
+  }
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
-      
-      {data.length > 0 ? (
+
+      {/* Search Bar - only show if cluster column exists */}
+      {clusterColumn ? (
+        <div style={{ marginBottom: '15px' }}>
+          <label htmlFor="cluster-search" style={{ fontWeight: 'bold', marginRight: '8px' }}>
+            Search Cluster:
+          </label>
+          <input
+            id="cluster-search"
+            type="text"
+            placeholder="Type to filter clusters..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: '14px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              width: '300px',
+              maxWidth: '100%'
+            }}
+          />
+          {searchTerm && (
+            <span
+              style={{ marginLeft: '10px', fontSize: '12px', color: '#666' }}
+            >
+              Showing {filteredAndSortedData.length} of {data.length} rows
+            </span>
+          )}
+        </div>
+      ) : (
+        <p style={{ color: '#d9534f', marginBottom: '15px' }}>
+          ⚠️ "cluster" column not found. Search disabled.
+        </p>
+      )}
+
+      {filteredAndSortedData.length > 0 ? (
         <div style={{ overflowX: 'auto' }}>
           <table 
             border="1" 
@@ -111,7 +183,7 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
-                {Object.keys(data[0]).map((key) => (
+                {columns.map((key) => (
                   <th 
                     key={key} 
                     style={{ 
@@ -133,18 +205,23 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedData.map((row, index) => (
+              {filteredAndSortedData.map((row, index) => (
                 <tr key={index}>
-                  {Object.values(row).map((value, i) => (
+                  {columns.map((col, i) => (
                     <td 
                       key={i} 
                       style={{ 
                         padding: '8px', 
                         border: '1px solid #ddd',
-                        verticalAlign: 'top'
+                        verticalAlign: 'top',
+                        maxWidth: '200px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
                       }}
+                      title={String(row[col])}
                     >
-                      {value}
+                      {row[col]}
                     </td>
                   ))}
                 </tr>
@@ -153,7 +230,7 @@ const Dashboard = () => {
           </table>
         </div>
       ) : (
-        <p>No data found in Excel file.</p>
+        <p>No matching data found.</p>
       )}
     </div>
   );
