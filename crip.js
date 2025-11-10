@@ -30,6 +30,37 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex }) => {
   );
 };
 
+// Custom Dropdown Component for Decision
+const DecisionDropdown = ({ value, onChange, rowIndex }) => {
+  const dropdownRef = useRef(null);
+  
+  useEffect(() => {
+    if (dropdownRef.current) {
+      dropdownRef.current.value = value || '';
+    }
+  }, [value, rowIndex]);
+
+  return (
+    <select
+      ref={dropdownRef}
+      defaultValue={value || ''}
+      onChange={onChange}
+      style={{
+        width: '100%',
+        padding: '4px',
+        border: '1px solid #ccc',
+        borderRadius: '2px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <option value="">Select Decision</option>
+      <option value="No Change">No Change</option>
+      <option value="Increase">Increase</option>
+      <option value="Decrease">Decrease</option>
+    </select>
+  );
+};
+
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +195,27 @@ const Dashboard = () => {
         newData[originalDataIndex] = {
           ...newData[originalDataIndex],
           Comment: newValue
+        };
+      }
+      return newData;
+    });
+  };
+
+  // Handle decision dropdown change
+  const handleDecisionChange = (rowIndex, event) => {
+    const newValue = event.target.value;
+    
+    setData(prevData => {
+      const newData = [...prevData];
+      const originalIndex = sortedData[rowIndex];
+      const originalDataIndex = newData.findIndex(row => 
+        JSON.stringify(row) === JSON.stringify(originalIndex)
+      );
+      
+      if (originalDataIndex !== -1) {
+        newData[originalDataIndex] = {
+          ...newData[originalDataIndex],
+          Decision: newValue
         };
       }
       return newData;
@@ -365,6 +417,28 @@ const Dashboard = () => {
                                 value={row[key] || ''}
                                 onChange={(e) => handleCommentChange(rowIndex, e)}
                                 placeholder="Enter comment"
+                                rowIndex={rowIndex}
+                              />
+                            ) : (
+                              row[key] || ''
+                            )}
+                          </td>
+                        );
+                      } else if (key.toLowerCase() === 'decision') {
+                        // If this is the Decision column, render dropdown if row is selected
+                        return (
+                          <td 
+                            key={`decision-${rowIndex}-${colIndex}`} 
+                            style={{ 
+                              padding: '8px', 
+                              border: '1px solid #ddd',
+                              verticalAlign: 'top'
+                            }}
+                          >
+                            {isRowSelected ? (
+                              <DecisionDropdown
+                                value={row[key] || ''}
+                                onChange={(e) => handleDecisionChange(rowIndex, e)}
                                 rowIndex={rowIndex}
                               />
                             ) : (
