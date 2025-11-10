@@ -108,7 +108,10 @@ const Dashboard = () => {
   };
 
   // Handle checkbox selection
-  const handleCheckboxChange = (index) => {
+  const handleCheckboxChange = (index, colIndex) => {
+    // Only process if this is the 6th column (index 5)
+    if (colIndex !== 5) return;
+    
     const rowData = sortedData[index];
     const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
     
@@ -219,6 +222,9 @@ const Dashboard = () => {
 
   if (loading) return <div>Loading Excel data...</div>;
 
+  // Get column keys for rendering
+  const columnKeys = Object.keys(data[0] || {});
+
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Excel Data Dashboard</h2>
@@ -253,11 +259,7 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
-                {/* Revision Column Header */}
-                <th style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #ddd' }}>
-                  Revision
-                </th>
-                {Object.keys(data[0]).map((key) => (
+                {columnKeys.map((key, index) => (
                   <th 
                     key={key} 
                     style={{ 
@@ -265,59 +267,68 @@ const Dashboard = () => {
                       textAlign: 'left',
                       fontWeight: 'bold',
                       border: '1px solid #ddd',
-                      cursor: 'pointer',
-                      userSelect: 'none'
+                      cursor: index !== 5 ? 'pointer' : 'default', // Disable cursor for checkbox column
+                      userSelect: index !== 5 ? 'none' : 'text'
                     }}
-                    onClick={() => requestSort(key)}
+                    onClick={() => index !== 5 && requestSort(key)}
                   >
                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                      {key}
-                      <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                      {index === 5 ? 'Revision' : key}
+                      {index !== 5 && <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>}
                     </span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sortedData.map((row, index) => {
+              {sortedData.map((row, rowIndex) => {
                 const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
                 const isDecrease = decisionValue.toString().toLowerCase() === 'decrease';
-                const isRowSelected = selectedRows.includes(index);
+                const isRowSelected = selectedRows.includes(rowIndex);
                 
                 return (
                   <tr 
-                    key={index} 
+                    key={rowIndex} 
                     style={getRowStyle(row)}
                   >
-                    {/* Revision Checkbox */}
-                    <td style={{ 
-                      padding: '8px', 
-                      border: '1px solid #ddd',
-                      textAlign: 'center',
-                      verticalAlign: 'middle'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={isRowSelected}
-                        onChange={() => handleCheckboxChange(index)}
-                        disabled={isDecrease}
-                        style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
-                      />
-                    </td>
-                    
-                    {/* Data Cells */}
-                    {Object.values(row).map((value, i) => (
-                      <td 
-                        key={i} 
-                        style={{ 
-                          padding: '8px', 
-                          border: '1px solid #ddd',
-                          verticalAlign: 'top'
-                        }}
-                      >
-                        {value}
-                      </td>
-                    ))}
+                    {columnKeys.map((key, colIndex) => {
+                      // If this is the 6th column (index 5), render checkbox
+                      if (colIndex === 5) {
+                        return (
+                          <td 
+                            key={colIndex} 
+                            style={{ 
+                              padding: '8px', 
+                              border: '1px solid #ddd',
+                              textAlign: 'center',
+                              verticalAlign: 'middle'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isRowSelected}
+                              onChange={() => handleCheckboxChange(rowIndex, colIndex)}
+                              disabled={isDecrease}
+                              style={{ cursor: isDecrease ? 'not-allowed' : 'pointer' }}
+                            />
+                          </td>
+                        );
+                      } else {
+                        // For other columns, render the data
+                        return (
+                          <td 
+                            key={colIndex} 
+                            style={{ 
+                              padding: '8px', 
+                              border: '1px solid #ddd',
+                              verticalAlign: 'top'
+                            }}
+                          >
+                            {row[key]}
+                          </td>
+                        );
+                      }
+                    })}
                   </tr>
                 );
               })}
