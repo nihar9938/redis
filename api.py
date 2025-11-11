@@ -258,7 +258,7 @@ const Dashboard = () => {
       const updates = selectedRows.map(originalIndex => {
         return {
           index: originalIndex,
-           {
+          data: {
             Decision: updatedData[originalIndex].Decision,
             Comment: updatedData[originalIndex].Comment,
             UpdatedBy: 'System User', // Default value since no input field
