@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowIndex }) => {
+const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.value = value || '';
     }
-  }, [value, rowIndex]);
+  }, [value, actualIndex]);
 
   return (
     <input
@@ -30,14 +30,14 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex }) => {
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowIndex }) => {
+const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
     if (dropdownRef.current) {
       dropdownRef.current.value = value || '';
     }
-  }, [value, rowIndex]);
+  }, [value, actualIndex]);
 
   return (
     <select
@@ -238,7 +238,7 @@ const Dashboard = () => {
       const updates = selectedRows.map(originalIndex => {
         return {
           index: originalIndex,
-          data: {
+           {
             Decision: updatedData[originalIndex].Decision,
             Comment: updatedData[originalIndex].Comment,
             UpdatedBy: 'System User', // Default value since no input field
@@ -470,6 +470,7 @@ const Dashboard = () => {
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
                                 />
                               ) : (
                                 row[key] || ''
@@ -492,6 +493,7 @@ const Dashboard = () => {
                                   value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
                                 />
                               ) : (
                                 row[key] || ''
