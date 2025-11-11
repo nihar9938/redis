@@ -1,13 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
 from bson import ObjectId
+import os
 
-# MongoDB configuration
-MONGODB_URL = "mongodb://username:password@host:port/database_name"
-DATABASE_NAME = "your_database"
-COLLECTION_NAME = "your_collection"
+# --- Configuration ---
+MONGODB_USERNAME = os.getenv("MONGODB_USERNAME", "your_username")
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "your_password")
+MONGODB_HOST = os.getenv("MONGODB_HOST", "localhost")
+MONGODB_PORT = os.getenv("MONGODB_PORT", "27017")
+MONGODB_DB = os.getenv("MONGODB_DB", "your_database")
+MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "your_collection")
+
+MONGODB_URL = f"mongodb://{MONGODB_USERNAME}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/{MONGODB_DB}?authSource=admin&retryWrites=true&w=majority"
 
 # Pydantic models
 class DocumentModel(BaseModel):
@@ -38,39 +44,47 @@ class PyObjectId(ObjectId):
         field_schema.update(type="string")
 
 # Initialize FastAPI app
-app = FastAPI()
+app = FastAPI(title="MongoDB API", description="FastAPI with MongoDB CRUD operations")
 
 # MongoDB connection
-client: AsyncIOMotorClient = None
+client: MongoClient = None
+db = None
 
 @app.on_event("startup")
-async def startup_db_client():
-    global client
-    client = AsyncIOMotorClient(MONGODB_URL)
-    # Test connection
-    await client.admin.command('ping')
+def startup_db_client():
+    global client, db
+    try:
+        client = MongoClient(MONGODB_URL)
+        # Test connection
+        client.admin.command('ping')
+        db = client[MONGODB_DB]
+        print("✅ Successfully connected to MongoDB")
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
+        raise RuntimeError("Failed to connect to MongoDB") from e
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+def shutdown_db_client():
     global client
-    client.close()
+    if client:
+        client.close()
+        print("🔌 MongoDB connection closed")
 
 # GET all items endpoint
 @app.get("/items", response_model=List[DocumentModel])
-async def get_items():
-    collection = client[DATABASE_NAME][COLLECTION_NAME]
-    cursor = collection.find({})
+def get_items():
+    collection = db[MONGODB_COLLECTION]
     items = []
-    async for document in cursor:
+    for document in collection.find({}):
         document["id"] = str(document.pop("_id"))
         items.append(DocumentModel(**document))
     return items
 
 # GET single item endpoint
 @app.get("/items/{item_id}", response_model=DocumentModel)
-async def get_item(item_id: str):
-    collection = client[DATABASE_NAME][COLLECTION_NAME]
-    item = await collection.find_one({"_id": PyObjectId.validate(item_id)})
+def get_item(item_id: str):
+    collection = db[MONGODB_COLLECTION]
+    item = collection.find_one({"_id": PyObjectId.validate(item_id)})
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     item["id"] = str(item.pop("_id"))
@@ -78,8 +92,8 @@ async def get_item(item_id: str):
 
 # UPDATE endpoint
 @app.put("/items/{item_id}", response_model=DocumentModel)
-async def update_item(item_id: str, update_data: UpdateModel):
-    collection = client[DATABASE_NAME][COLLECTION_NAME]
+def update_item(item_id: str, update_data: UpdateModel):
+    collection = db[MONGODB_COLLECTION]
     
     # Convert Pydantic model to dict and remove None values
     update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
@@ -87,7 +101,7 @@ async def update_item(item_id: str, update_data: UpdateModel):
     if not update_dict:
         raise HTTPException(status_code=400, detail="No valid fields to update")
     
-    result = await collection.update_one(
+    result = collection.update_one(
         {"_id": PyObjectId.validate(item_id)},
         {"$set": update_dict}
     )
@@ -96,6 +110,11 @@ async def update_item(item_id: str, update_data: UpdateModel):
         raise HTTPException(status_code=404, detail="Item not found")
     
     # Return updated document
-    updated_item = await collection.find_one({"_id": PyObjectId.validate(item_id)})
+    updated_item = collection.find_one({"_id": PyObjectId.validate(item_id)})
     updated_item["id"] = str(updated_item.pop("_id"))
     return DocumentModel(**updated_item)
+
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    return {"status": "OK", "message": "Application is running"}
