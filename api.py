@@ -363,180 +363,226 @@ const Dashboard = () => {
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
         {data.length > 0 ? (
           <div style={{ minWidth: 'max-content' }}>
-            <table 
-              border="1" 
-              cellPadding="5" 
-              cellSpacing="0" 
-              style={{ 
-                borderCollapse: 'collapse', 
-                width: '100%', 
-                backgroundColor: 'white' 
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: '#f2f2f2' }}>
-                  {/* Checkbox Column Header - Fixed */}
-                  <th 
-                    style={{ 
-                      padding: '8px', 
-                      textAlign: 'center', 
-                      fontWeight: 'bold',
-                      border: '1px solid #ddd',
-                      position: 'sticky',
-                      left: 0,
-                      zIndex: 10,
-                      backgroundColor: '#f2f2f2'
-                    }}
-                  >
-                    Revision
-                  </th>
-                  {columnKeys.map((key) => (
+            {/* Fixed Revision Column Container */}
+            <div style={{ 
+              position: 'absolute', 
+              left: '20px', 
+              top: '180px', 
+              zIndex: 100, 
+              overflow: 'hidden',
+              backgroundColor: 'white'
+            }}>
+              <table 
+                border="1" 
+                cellPadding="5" 
+                cellSpacing="0" 
+                style={{ 
+                  borderCollapse: 'collapse', 
+                  backgroundColor: 'white',
+                  tableLayout: 'fixed',
+                  width: '80px' // Fixed width for revision column
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: '#f2f2f2' }}>
                     <th 
-                      key={key} 
                       style={{ 
                         padding: '8px', 
-                        textAlign: 'left',
+                        textAlign: 'center', 
                         fontWeight: 'bold',
                         border: '1px solid #ddd',
-                        cursor: 'pointer',
-                        userSelect: 'none',
+                        width: '80px',
                         position: 'sticky',
                         top: 0,
-                        zIndex: 5,
+                        zIndex: 10,
                         backgroundColor: '#f2f2f2'
                       }}
-                      onClick={() => requestSort(key)}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ display: 'flex', alignItems: 'center' }}>
-                          {key}
-                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                        </span>
-                        {/* Only show search input for GroupId and Cluster columns */}
-                        {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
-                          <input
-                            type="text"
-                            placeholder={`Search ${key}...`}
-                            value={searchFilters[key] || ''}
-                            onChange={(e) => handleSearchChange(key, e.target.value)}
-                            style={{
-                              marginTop: '5px',
-                              padding: '4px',
-                              border: '1px solid #ccc',
-                              borderRadius: '2px',
-                              fontSize: '12px',
-                              width: '100%'
-                            }}
-                          />
-                        )}
-                      </div>
+                      Revision
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {currentData.map((row, rowIndex) => {
-                  const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-                  const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
-                                     decisionValue.toString().toLowerCase() === 'no change';
-                  const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
-                  const isRowSelected = selectedRows.includes(actualIndex);
-                  
-                  return (
-                    <tr 
-                      key={actualIndex} 
-                      style={getRowStyle(row)}
-                    >
-                      {/* Checkbox Column - Fixed */}
-                      <td 
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentData.map((row, rowIndex) => {
+                    const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+                    const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
+                                       decisionValue.toString().toLowerCase() === 'no change';
+                    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
+                    const isRowSelected = selectedRows.includes(actualIndex);
+                    
+                    return (
+                      <tr 
+                        key={`rev-${actualIndex}`} 
+                        style={getRowStyle(row)}
+                      >
+                        <td 
+                          style={{ 
+                            padding: '8px', 
+                            border: '1px solid #ddd',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 1,
+                            backgroundColor: isGreyedOut ? '#e0e0e0' : 'white',
+                            width: '80px'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isRowSelected}
+                            onChange={() => handleCheckboxChange(rowIndex)}
+                            disabled={isGreyedOut}
+                            style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Main Table (without revision column) */}
+            <div style={{ marginLeft: '100px' }}> {/* Offset for fixed revision column */}
+              <table 
+                border="1" 
+                cellPadding="5" 
+                cellSpacing="0" 
+                style={{ 
+                  borderCollapse: 'collapse', 
+                  width: '100%', 
+                  backgroundColor: 'white' 
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: '#f2f2f2' }}>
+                    {columnKeys.map((key) => (
+                      <th 
+                        key={key} 
                         style={{ 
                           padding: '8px', 
+                          textAlign: 'left',
+                          fontWeight: 'bold',
                           border: '1px solid #ddd',
-                          textAlign: 'center',
-                          verticalAlign: 'middle',
+                          cursor: 'pointer',
+                          userSelect: 'none',
                           position: 'sticky',
-                          left: 0,
-                          zIndex: 9, // Lower than header but higher than content
-                          backgroundColor: isGreyedOut ? '#e0e0e0' : 'white'
+                          top: 0,
+                          zIndex: 5,
+                          backgroundColor: '#f2f2f2'
                         }}
+                        onClick={() => requestSort(key)}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isRowSelected}
-                          onChange={() => handleCheckboxChange(rowIndex)}
-                          disabled={isGreyedOut}
-                          style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
-                        />
-                      </td>
-                      
-                      {/* Data Columns */}
-                      {columnKeys.map((key, colIndex) => {
-                        if (key.toLowerCase() === 'comment') {
-                          // If this is the Comment column, render input if row is selected
-                          return (
-                            <td 
-                              key={`comment-${actualIndex}-${colIndex}`} 
-                              style={{ 
-                                padding: '8px', 
-                                border: '1px solid #ddd',
-                                verticalAlign: 'top'
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ display: 'flex', alignItems: 'center' }}>
+                            {key}
+                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                          </span>
+                          {/* Only show search input for GroupId and Cluster columns */}
+                          {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
+                            <input
+                              type="text"
+                              placeholder={`Search ${key}...`}
+                              value={searchFilters[key] || ''}
+                              onChange={(e) => handleSearchChange(key, e.target.value)}
+                              style={{
+                                marginTop: '5px',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '2px',
+                                fontSize: '12px',
+                                width: '100%'
                               }}
-                            >
-                              {isRowSelected ? (
-                                <CommentInput
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleCommentChange(rowIndex, e)}
-                                  placeholder="Enter comment"
-                                  rowIndex={rowIndex}
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
-                            </td>
-                          );
-                        } else if (key.toLowerCase() === 'decision') {
-                          // If this is the Decision column, render dropdown if row is selected
-                          return (
-                            <td 
-                              key={`decision-${actualIndex}-${colIndex}`} 
-                              style={{ 
-                                padding: '8px', 
-                                border: '1px solid #ddd',
-                                verticalAlign: 'top'
-                              }}
-                            >
-                              {isRowSelected ? (
-                                <DecisionDropdown
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                  rowIndex={rowIndex}
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
-                            </td>
-                          );
-                        } else {
-                          // For other columns, render the data
-                          return (
-                            <td 
-                              key={`data-${actualIndex}-${colIndex}`} 
-                              style={{ 
-                                padding: '8px', 
-                                border: '1px solid #ddd',
-                                verticalAlign: 'top'
-                              }}
-                            >
-                              {row[key] || ''}
-                            </td>
-                          );
-                        }
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            />
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentData.map((row, rowIndex) => {
+                    const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+                    const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
+                                       decisionValue.toString().toLowerCase() === 'no change';
+                    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
+                    const isRowSelected = selectedRows.includes(actualIndex);
+                    
+                    return (
+                      <tr 
+                        key={`data-${actualIndex}`} 
+                        style={getRowStyle(row)}
+                      >
+                        {/* Data Columns */}
+                        {columnKeys.map((key, colIndex) => {
+                          if (key.toLowerCase() === 'comment') {
+                            // If this is the Comment column, render input if row is selected
+                            return (
+                              <td 
+                                key={`comment-${actualIndex}-${colIndex}`} 
+                                style={{ 
+                                  padding: '8px', 
+                                  border: '1px solid #ddd',
+                                  verticalAlign: 'top'
+                                }}
+                              >
+                                {isRowSelected ? (
+                                  <CommentInput
+                                    value={row[key] || ''}
+                                    onChange={(e) => handleCommentChange(rowIndex, e)}
+                                    placeholder="Enter comment"
+                                    rowIndex={rowIndex}
+                                  />
+                                ) : (
+                                  row[key] || ''
+                                )}
+                              </td>
+                            );
+                          } else if (key.toLowerCase() === 'decision') {
+                            // If this is the Decision column, render dropdown if row is selected
+                            return (
+                              <td 
+                                key={`decision-${actualIndex}-${colIndex}`} 
+                                style={{ 
+                                  padding: '8px', 
+                                  border: '1px solid #ddd',
+                                  verticalAlign: 'top'
+                                }}
+                              >
+                                {isRowSelected ? (
+                                  <DecisionDropdown
+                                    value={row[key] || ''}
+                                    onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                    rowIndex={rowIndex}
+                                  />
+                                ) : (
+                                  row[key] || ''
+                                )}
+                              </td>
+                            );
+                          } else {
+                            // For other columns, render the data
+                            return (
+                              <td 
+                                key={`data-${actualIndex}-${colIndex}`} 
+                                style={{ 
+                                  padding: '8px', 
+                                  border: '1px solid #ddd',
+                                  verticalAlign: 'top'
+                                }}
+                              >
+                                {row[key] || ''}
+                              </td>
+                            );
+                          }
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <p>No data found in MongoDB.</p>
@@ -615,7 +661,7 @@ const Dashboard = () => {
           </button>
           
           <div style={{ marginLeft: '10px', fontSize: '14px' }}>
-            Page {currentPage} of {totalPages} ({totalItems} total records)
+            Page {currentPage} of {totalItems} ({totalItems} total records)
           </div>
         </div>
       )}
