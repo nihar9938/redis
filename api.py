@@ -76,7 +76,7 @@ const Dashboard = () => {
         setError('');
         
         // Fetch data from MongoDB
-        const response = await fetch('http://localhost:5000/api/data'); // Replace with your API endpoint
+        const response = await fetch('http://localhost:8000/excel-data'); // Replace with your API endpoint
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const jsonData = await response.json();
@@ -225,16 +225,34 @@ const Dashboard = () => {
     }));
   };
 
-  // Save all changes to MongoDB
+  // Save all changes to MongoDB using your specific API
   const saveDataToMongoDB = async (updatedData) => {
     try {
-      // Update data in MongoDB
-      const response = await fetch('http://localhost:5000/api/data', {
+      // Prepare updates array for your specific API
+      const updates = selectedRows.map(rowIndex => {
+        const originalIndex = sortedData[rowIndex];
+        const originalDataIndex = data.findIndex(row => 
+          JSON.stringify(row) === JSON.stringify(originalIndex)
+        );
+        
+        return {
+          index: originalDataIndex,
+          data: {
+            Decision: updatedData[originalDataIndex].Decision,
+            Comment: updatedData[originalDataIndex].Comment,
+            UpdatedBy: 'System User', // Default value since no input field
+            UpdatedTime: new Date().toISOString()
+          }
+        };
+      });
+      
+      // Send updates to MongoDB
+      const response = await fetch('http://localhost:8000/excel-update', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify({ updates }),
       });
       
       if (!response.ok) {
@@ -245,7 +263,7 @@ const Dashboard = () => {
       setShowSuccessModal(true);
     } catch (error) {
       setError('Error saving data to MongoDB: ' + error.message);
-      console.error('Error saving ', error);
+      console.error('Error saving data:', error);
     }
   };
 
@@ -273,7 +291,7 @@ const Dashboard = () => {
       }
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API
     
     // Update the data in browser memory
     setData(updatedData);
