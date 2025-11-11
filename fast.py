@@ -27,6 +27,14 @@ class UpdateModel(BaseModel):
     description: Optional[str] = None
     value: Optional[int] = None
 
+class UpdateManyModel(BaseModel):
+    filter_query: dict  # MongoDB filter criteria
+    update_data: UpdateModel  # Fields to update
+
+class UpdateManyResponse(BaseModel):
+    matched_count: int
+    modified_count: int
+
 # MongoDB helper
 class PyObjectId(ObjectId):
     @classmethod
@@ -46,75 +54,100 @@ class PyObjectId(ObjectId):
 # Initialize FastAPI app
 app = FastAPI(title="MongoDB API", description="FastAPI with MongoDB CRUD operations")
 
-# MongoDB connection
-client: MongoClient = None
-db = None
-
-@app.on_event("startup")
-def startup_db_client():
-    global client, db
-    try:
-        client = MongoClient(MONGODB_URL)
-        # Test connection
-        client.admin.command('ping')
-        db = client[MONGODB_DB]
-        print("✅ Successfully connected to MongoDB")
-    except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
-        raise RuntimeError("Failed to connect to MongoDB") from e
-
-@app.on_event("shutdown")
-def shutdown_db_client():
-    global client
-    if client:
-        client.close()
-        print("🔌 MongoDB connection closed")
+def get_db_connection():
+    """Create a new MongoDB connection for each API call"""
+    client = MongoClient(MONGODB_URL)
+    # Test connection
+    client.admin.command('ping')
+    db = client[MONGODB_DB]
+    return db, client
 
 # GET all items endpoint
 @app.get("/items", response_model=List[DocumentModel])
 def get_items():
-    collection = db[MONGODB_COLLECTION]
-    items = []
-    for document in collection.find({}):
-        document["id"] = str(document.pop("_id"))
-        items.append(DocumentModel(**document))
-    return items
+    db, client = get_db_connection()
+    try:
+        collection = db[MONGODB_COLLECTION]
+        items = []
+        for document in collection.find({}):
+            document["id"] = str(document.pop("_id"))
+            items.append(DocumentModel(**document))
+        return items
+    finally:
+        client.close()  # Always close connection after use
 
 # GET single item endpoint
 @app.get("/items/{item_id}", response_model=DocumentModel)
 def get_item(item_id: str):
-    collection = db[MONGODB_COLLECTION]
-    item = collection.find_one({"_id": PyObjectId.validate(item_id)})
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    item["id"] = str(item.pop("_id"))
-    return DocumentModel(**item)
+    db, client = get_db_connection()
+    try:
+        collection = db[MONGODB_COLLECTION]
+        item = collection.find_one({"_id": PyObjectId.validate(item_id)})
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+        item["id"] = str(item.pop("_id"))
+        return DocumentModel(**item)
+    finally:
+        client.close()
 
-# UPDATE endpoint
+# UPDATE single item endpoint
 @app.put("/items/{item_id}", response_model=DocumentModel)
-def update_item(item_id: str, update_data: UpdateModel):
-    collection = db[MONGODB_COLLECTION]
-    
-    # Convert Pydantic model to dict and remove None values
-    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
-    
-    if not update_dict:
-        raise HTTPException(status_code=400, detail="No valid fields to update")
-    
-    result = collection.update_one(
-        {"_id": PyObjectId.validate(item_id)},
-        {"$set": update_dict}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
-    # Return updated document
-    updated_item = collection.find_one({"_id": PyObjectId.validate(item_id)})
-    updated_item["id"] = str(updated_item.pop("_id"))
-    return DocumentModel(**updated_item)
+def update_item(item_id: str, update_ UpdateModel):
+    db, client = get_db_connection()
+    try:
+        collection = db[MONGODB_COLLECTION]
+        
+        update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+        
+        if not update_dict:
+            raise HTTPException(status_code=400, detail="No valid fields to update")
+        
+        result = collection.update_one(
+            {"_id": PyObjectId.validate(item_id)},
+            {"$set": update_dict}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+        
+        updated_item = collection.find_one({"_id": PyObjectId.validate(item_id)})
+        updated_item["id"] = str(updated_item.pop("_id"))
+        return DocumentModel(**updated_item)
+    finally:
+        client.close()
+
+# UPDATE multiple items endpoint
+@app.put("/items", response_model=UpdateManyResponse)
+def update_many_items(update_request: UpdateManyModel):
+    db, client = get_db_connection()
+    try:
+        collection = db[MONGODB_COLLECTION]
+        
+        update_dict = {k: v for k, v in update_request.update_data.dict().items() if v is not None}
+        
+        if not update_dict:
+            raise HTTPException(status_code=400, detail="No valid fields to update")
+        
+        result = collection.update_many(
+            update_request.filter_query,
+            {"$set": update_dict}
+        )
+        
+        return UpdateManyResponse(
+            matched_count=result.matched_count,
+            modified_count=result.modified_count
+        )
+    finally:
+        client.close()
 
 # Health check endpoint
 @app.get("/health")
 def health_check():
-    return {"status": "OK", "message": "Application is running"}
+    try:
+        # Test connection
+        client = MongoClient(MONGODB_URL)
+        client.admin.command('ping')
+        client.close()
+        return {"status": "OK", "message": "Application is running"}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Database connection failed")
