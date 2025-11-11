@@ -375,7 +375,7 @@ const Dashboard = () => {
             >
               <thead>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
-                  {/* Checkbox Column Header */}
+                  {/* Checkbox Column Header - Fixed */}
                   <th 
                     style={{ 
                       padding: '8px', 
@@ -447,7 +447,7 @@ const Dashboard = () => {
                       key={actualIndex} 
                       style={getRowStyle(row)}
                     >
-                      {/* Checkbox Column */}
+                      {/* Checkbox Column - Fixed */}
                       <td 
                         style={{ 
                           padding: '8px', 
@@ -456,7 +456,7 @@ const Dashboard = () => {
                           verticalAlign: 'middle',
                           position: 'sticky',
                           left: 0,
-                          zIndex: 1,
+                          zIndex: 9, // Lower than header but higher than content
                           backgroundColor: isGreyedOut ? '#e0e0e0' : 'white'
                         }}
                       >
