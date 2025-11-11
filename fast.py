@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 class UpdateRow(BaseModel):
     index: int  # Row index to update
-     Dict[str, Any]  # New values for this row
+    data: Dict[str, Any]  # New values for this row
 
 class UpdateRequest(BaseModel):
     updates: List[UpdateRow]  # List of rows to update
@@ -39,7 +39,7 @@ async def get_excel_data():
         data = df.to_dict(orient='records')
         
         # Convert any non-serializable values to None
-        for row in 
+        for row in data:
             for key, value in row.items():
                 if pd.isna(value):
                     row[key] = None
@@ -74,7 +74,7 @@ async def update_excel_data(update_request: UpdateRequest):
         # Apply updates
         for update_row in update_request.updates:
             index = update_row.index
-            new_data = update_row.data
+            new_data = update_row.data  # This should now work correctly
             
             # Update each column in the row
             for col, value in new_data.items():
@@ -125,7 +125,7 @@ async def update_excel_data_with_path(file_path: str, update_request: UpdateRequ
         # Apply updates
         for update_row in update_request.updates:
             index = update_row.index
-            new_data = update_row.data
+            new_data = update_row.data  # This should now work correctly
             
             # Update each column in the row
             for col, value in new_data.items():
