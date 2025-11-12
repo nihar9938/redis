@@ -149,8 +149,8 @@ const SummaryPage = () => {
     setSearchCluster(e.target.value);
   };
 
-  // Handle Scope Creep Increase row click - redirect to dashboard with cluster and month parameters
-  const handleScopeCreepClick = (row) => {
+  // Handle Increase column click - redirect to dashboard with cluster and month parameters
+  const handleIncreaseClick = (row) => {
     // Find the cluster value in the row
     const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
     if (clusterValue && clusterValue !== '0' && month) {
@@ -277,9 +277,8 @@ const SummaryPage = () => {
                       }}
                     >
                       {columnKeys.map((key, colIndex) => {
-                        // Check if this is the "Scope Creep Increase" column
-                        const isScopeCreepColumn = key.toLowerCase().includes('scope creep') && 
-                                                  key.toLowerCase().includes('increase');
+                        // Check if this is the "Increase" column
+                        const isIncreaseColumn = key.toLowerCase().includes('increase');
                         
                         return (
                           <td 
@@ -288,9 +287,9 @@ const SummaryPage = () => {
                               padding: '8px', 
                               border: '3px solid #ddd',
                               verticalAlign: 'top',
-                              cursor: isScopeCreepColumn ? 'pointer' : 'default'
+                              cursor: isIncreaseColumn ? 'pointer' : 'default'
                             }}
-                            onClick={isScopeCreepColumn ? () => handleScopeCreepClick(row) : undefined}
+                            onClick={isIncreaseColumn ? () => handleIncreaseClick(row) : undefined}
                           >
                             {row[key] || '0'} {/* Show '0' if value is empty */}
                           </td>
