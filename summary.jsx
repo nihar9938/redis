@@ -1,6 +1,6 @@
 // src/SummaryPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // For navigation
+import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
 const SummaryPage = () => {
   const [data, setData] = useState([]);
@@ -10,7 +10,7 @@ const SummaryPage = () => {
   const [searchCluster, setSearchCluster] = useState(''); // Cluster search
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  const navigate = useNavigate(); // Hook for navigation
+  const history = useHistory(); // Hook for navigation (older version)
 
   // Available months
   const months = [
@@ -111,7 +111,7 @@ const SummaryPage = () => {
   const handleClusterClick = (clusterName) => {
     // Navigate to dashboard with cluster as query parameter
     // This will be handled by the backend API
-    navigate(`/dashboard?cluster=${encodeURIComponent(clusterName)}`);
+    history.push(`/dashboard?cluster=${encodeURIComponent(clusterName)}`);
   };
 
   if (loading && month) return <div>Loading data for {month}...</div>;
