@@ -499,22 +499,40 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Save Button */}
-      <button 
-        onClick={handleBulkEdit}
-        style={{
-          marginBottom: '10px',
-          padding: '8px 16px',
-          backgroundColor: '#4CAF50',
-          color: 'white',
-          border: '3px solid #4CAF50',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          alignSelf: 'flex-start'
-        }}
-      >
-        Bulk Edit Selected ({selectedRows.length})
-      </button>
+      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
+      {isSelectAllChecked() ? (
+        <button 
+          onClick={handleBulkEdit}
+          style={{
+            marginBottom: '10px',
+            padding: '8px 16px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: '3px solid #4CAF50',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            alignSelf: 'flex-start'
+          }}
+        >
+          Bulk Edit Selected ({selectedRows.length})
+        </button>
+      ) : (
+        <button 
+          onClick={handleBulkSave}
+          style={{
+            marginBottom: '10px',
+            padding: '8px 16px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: '3px solid #4CAF50',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            alignSelf: 'flex-start'
+          }}
+        >
+          Save All Changes
+        </button>
+      )}
       
       {/* Scrollable Table Container */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
