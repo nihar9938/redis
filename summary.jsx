@@ -1,5 +1,6 @@
 // src/SummaryPage.jsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // For navigation
 
 const SummaryPage = () => {
   const [data, setData] = useState([]);
@@ -8,6 +9,8 @@ const SummaryPage = () => {
   const [month, setMonth] = useState(''); // Selected month
   const [searchCluster, setSearchCluster] = useState(''); // Cluster search
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  const navigate = useNavigate(); // Hook for navigation
 
   // Available months
   const months = [
@@ -102,6 +105,13 @@ const SummaryPage = () => {
   // Handle cluster search change
   const handleClusterSearchChange = (e) => {
     setSearchCluster(e.target.value);
+  };
+
+  // Handle cluster row click - redirect to dashboard with cluster filter
+  const handleClusterClick = (clusterName) => {
+    // Navigate to dashboard with cluster as query parameter
+    // This will be handled by the backend API
+    navigate(`/dashboard?cluster=${encodeURIComponent(clusterName)}`);
   };
 
   if (loading && month) return <div>Loading data for {month}...</div>;
@@ -211,7 +221,15 @@ const SummaryPage = () => {
                     <tr 
                       key={rowIndex} 
                       style={{ 
-                        backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9' 
+                        backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        // Find the cluster value in the row
+                        const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
+                        if (clusterValue) {
+                          handleClusterClick(clusterValue);
+                        }
                       }}
                     >
                       {columnKeys.map((key, colIndex) => (
