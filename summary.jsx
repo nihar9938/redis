@@ -32,7 +32,21 @@ const SummaryPage = () => {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const jsonData = await response.json();
-        setData(jsonData);
+        
+        // Replace empty/null/undefined values with "0"
+        const processedData = jsonData.map(row => {
+          const newRow = {};
+          for (const key in row) {
+            if (row[key] === null || row[key] === undefined || row[key] === '') {
+              newRow[key] = '0';
+            } else {
+              newRow[key] = row[key];
+            }
+          }
+          return newRow;
+        });
+        
+        setData(processedData);
       } catch (error) {
         setError('Error loading data from MongoDB: ' + error.message);
         console.error('Error loading ', error);
@@ -63,9 +77,9 @@ const SummaryPage = () => {
       const bValue = b[sortConfig.key];
 
       // Handle empty values
-      if (aValue === '' && bValue === '') return 0;
-      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
-      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue === '0' && bValue === '0') return 0;
+      if (aValue === '0') return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bValue === '0') return sortConfig.direction === 'asc' ? -1 : 1;
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -107,11 +121,14 @@ const SummaryPage = () => {
     setSearchCluster(e.target.value);
   };
 
-  // Handle cluster row click - redirect to dashboard with cluster filter
-  const handleClusterClick = (clusterName) => {
-    // Navigate to dashboard with cluster as query parameter
-    // This will be handled by the backend API
-    history.push(`/dashboard?cluster=${encodeURIComponent(clusterName)}`);
+  // Handle Scope Creep Increase row click - redirect to dashboard with cluster filter
+  const handleScopeCreepClick = (row) => {
+    // Find the cluster value in the row
+    const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
+    if (clusterValue && clusterValue !== '0') {
+      // Navigate to dashboard with cluster as query parameter
+      history.push(`/dashboard?cluster=${encodeURIComponent(clusterValue)}`);
+    }
   };
 
   if (loading && month) return <div>Loading data for {month}...</div>;
@@ -221,29 +238,29 @@ const SummaryPage = () => {
                     <tr 
                       key={rowIndex} 
                       style={{ 
-                        backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // Find the cluster value in the row
-                        const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
-                        if (clusterValue) {
-                          handleClusterClick(clusterValue);
-                        }
+                        backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9'
                       }}
                     >
-                      {columnKeys.map((key, colIndex) => (
-                        <td 
-                          key={`data-${rowIndex}-${key}`} 
-                          style={{ 
-                            padding: '8px', 
-                            border: '3px solid #ddd',
-                            verticalAlign: 'top'
-                          }}
-                        >
-                          {row[key] || ''}
-                        </td>
-                      ))}
+                      {columnKeys.map((key, colIndex) => {
+                        // Check if this is the "Scope Creep Increase" column
+                        const isScopeCreepColumn = key.toLowerCase().includes('scope creep') && 
+                                                  key.toLowerCase().includes('increase');
+                        
+                        return (
+                          <td 
+                            key={`data-${rowIndex}-${key}`} 
+                            style={{ 
+                              padding: '8px', 
+                              border: '3px solid #ddd',
+                              verticalAlign: 'top',
+                              cursor: isScopeCreepColumn ? 'pointer' : 'default'
+                            }}
+                            onClick={isScopeCreepColumn ? () => handleScopeCreepClick(row) : undefined}
+                          >
+                            {row[key] || '0'} {/* Show '0' if value is empty */}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
