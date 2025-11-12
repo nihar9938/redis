@@ -1,4 +1,4 @@
-// src/Dashboard.jsx
+// src/Dashboard.jsx (Updated version without replacing blanks with "0")
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -71,7 +71,7 @@ const Dashboard = () => {
   const [searchFilters, setSearchFilters] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(200); // 200 records per page
-  const [month, setMonth] = useState('');
+  const [month, setMonth] = useState('October'); // Default to October
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
 
@@ -89,10 +89,10 @@ const Dashboard = () => {
     return { cluster, month: monthParam };
   };
 
+  // Set month from URL parameter (with October as default)
   useEffect(() => {
     const params = getParamsFromUrl();
-    // Set month from URL parameter or default to empty
-    setMonth(params.month || '');
+    setMonth(params.month || 'October'); // Default to October if no month in URL
   }, [location.search]);
 
   useEffect(() => {
@@ -150,9 +150,9 @@ const Dashboard = () => {
       const bValue = b[sortConfig.key];
 
       // Handle empty values
-      if (aValue === '0' && bValue === '0') return 0;
-      if (aValue === '0') return sortConfig.direction === 'asc' ? 1 : -1;
-      if (bValue === '0') return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue === '' && bValue === '') return 0;
+      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -382,7 +382,6 @@ const Dashboard = () => {
             fontSize: '14px'
           }}
         >
-          <option value="">Choose a month</option>
           {months.map(m => (
             <option key={m} value={m}>{m}</option>
           ))}
@@ -547,14 +546,14 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <CommentInput
-                                  value={row[key] || '0'}
+                                  value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                 />
                               ) : (
-                                row[key] || '0'
+                                row[key] || ''
                               )}
                             </td>
                           );
@@ -571,13 +570,13 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <DecisionDropdown
-                                  value={row[key] || '0'}
+                                  value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                 />
                               ) : (
-                                row[key] || '0'
+                                row[key] || ''
                               )}
                             </td>
                           );
@@ -592,7 +591,7 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {row[key] || '0'}
+                              {row[key] || ''}
                             </td>
                           );
                         }
