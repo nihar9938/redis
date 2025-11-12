@@ -240,11 +240,27 @@ async def update_csv_data_with_path(file_path: str, update_request: UpdateReques
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
 
 
-# GET endpoint to get all summary data (non-paginated) with caching
+# GET endpoint to get monthly summary data (non-paginated) with caching
 @app.get("/summary-data-all", response_model=List[dict])
-async def get_summary_data_all(file_path: str = Query("summary.csv", description="Summary CSV file path")):
+async def get_monthly_summary_data(
+    month: str = Query(..., description="Month name for summary file (e.g., january, february, etc.)")
+):
+    # Validate month parameter
+    valid_months = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+    ]
+    
+    if month.lower() not in valid_months:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid month. Valid months are: {', '.join(valid_months)}"
+        )
+    
+    file_path = f"{month.lower()}_summary.csv"
+    
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"Summary CSV file '{file_path}' not found")
+        raise HTTPException(status_code=404, detail=f"Monthly summary CSV file '{file_path}' not found")
     
     try:
         # Get cached or fresh DataFrame
@@ -261,8 +277,7 @@ async def get_summary_data_all(file_path: str = Query("summary.csv", description
         
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading summary CSV file: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=f"Error reading monthly summary CSV file: {str(e)}")
 
 # Clear cache endpoint
 @app.post("/clear-cache")
