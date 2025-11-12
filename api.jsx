@@ -1,5 +1,6 @@
 // src/Dashboard.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
 const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex }) => {
@@ -70,15 +71,49 @@ const Dashboard = () => {
   const [searchFilters, setSearchFilters] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(200); // 200 records per page
+  const [month, setMonth] = useState('');
+  const location = useLocation(); // For older React Router
+  const history = useHistory(); // For navigation
+
+  // Available months
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // Extract parameters from URL
+  const getParamsFromUrl = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const cluster = searchParams.get('cluster');
+    const monthParam = searchParams.get('month');
+    return { cluster, month: monthParam };
+  };
+
+  useEffect(() => {
+    const params = getParamsFromUrl();
+    // Set month from URL parameter or default to empty
+    setMonth(params.month || '');
+  }, [location.search]);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!month) return; // Don't fetch if no month is selected
+      
       try {
         setLoading(true);
         setError('');
         
-        // Fetch data from MongoDB
-        const response = await fetch('http://localhost:8000/excel-data'); // Replace with your API endpoint
+        // Get cluster from URL parameter
+        const params = getParamsFromUrl();
+        const clusterFromUrl = params.cluster;
+        
+        // Build API URL with month and cluster parameters
+        let apiUrl = `http://localhost:8000/excel-data?month=${encodeURIComponent(month)}`; // Replace with your API endpoint
+        if (clusterFromUrl) {
+          apiUrl += `&cluster=${encodeURIComponent(clusterFromUrl)}`;
+        }
+        
+        const response = await fetch(apiUrl);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const jsonData = await response.json();
@@ -91,10 +126,12 @@ const Dashboard = () => {
       }
     };
 
-    fetchData();
-  }, []);
+    if (month) {
+      fetchData();
+    }
+  }, [month, location.search]); // Re-fetch when month or URL search parameters change
 
-  // Apply filters
+  // Apply filters (excluding cluster since it's handled in API)
   const filteredData = React.useMemo(() => {
     return data.filter(row => {
       return Object.keys(searchFilters).every(key => {
@@ -113,9 +150,9 @@ const Dashboard = () => {
       const bValue = b[sortConfig.key];
 
       // Handle empty values
-      if (aValue === '' && bValue === '') return 0;
-      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
-      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue === '0' && bValue === '0') return 0;
+      if (aValue === '0') return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bValue === '0') return sortConfig.direction === 'asc' ? -1 : 1;
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -157,6 +194,28 @@ const Dashboard = () => {
   const getSortIndicator = (key) => {
     if (sortConfig.key !== key) return '↕️';
     return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  // Handle month change
+  const handleMonthChange = (e) => {
+    const selectedMonth = e.target.value;
+    setMonth(selectedMonth);
+    
+    // Update URL with month parameter
+    const params = getParamsFromUrl();
+    const newParams = new URLSearchParams();
+    
+    if (params.cluster) {
+      newParams.set('cluster', params.cluster);
+    }
+    if (selectedMonth) {
+      newParams.set('month', selectedMonth);
+    }
+    
+    history.push({
+      pathname: location.pathname,
+      search: newParams.toString()
+    });
   };
 
   // Check if Decision column exists and has 'Decrease' or 'No Change' value
@@ -299,7 +358,7 @@ const Dashboard = () => {
     setShowSuccessModal(false);
   };
 
-  if (loading) return <div>Loading data...</div>;
+  if (loading && month) return <div>Loading data for {month}...</div>;
 
   // Get column keys for rendering
   const columnKeys = Object.keys(data[0] || {});
@@ -307,6 +366,28 @@ const Dashboard = () => {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <h2>Excel Data Dashboard</h2>
+      
+      {/* Month Dropdown */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <label style={{ fontWeight: 'bold' }}>
+          Select Month:
+        </label>
+        <select
+          value={month}
+          onChange={handleMonthChange}
+          style={{
+            padding: '8px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        >
+          <option value="">Choose a month</option>
+          {months.map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      </div>
       
       {/* Error Message */}
       {error && (
@@ -341,7 +422,7 @@ const Dashboard = () => {
       
       {/* Scrollable Table Container */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
-        {data.length > 0 ? (
+        {month && data.length > 0 ? (
           <div style={{ minWidth: 'max-content' }}>
             <table 
               border="3" 
@@ -466,14 +547,14 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <CommentInput
-                                  value={row[key] || ''}
+                                  value={row[key] || '0'}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                 />
                               ) : (
-                                row[key] || ''
+                                row[key] || '0'
                               )}
                             </td>
                           );
@@ -490,13 +571,13 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <DecisionDropdown
-                                  value={row[key] || ''}
+                                  value={row[key] || '0'}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                 />
                               ) : (
-                                row[key] || ''
+                                row[key] || '0'
                               )}
                             </td>
                           );
@@ -511,7 +592,7 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {row[key] || ''}
+                              {row[key] || '0'}
                             </td>
                           );
                         }
@@ -522,13 +603,15 @@ const Dashboard = () => {
               </tbody>
             </table>
           </div>
+        ) : month ? (
+          <p>No data found for {month}.</p>
         ) : (
-          <p>No data found in MongoDB.</p>
+          <p>Please select a month to view data.</p>
         )}
       </div>
       
       {/* Pagination Controls */}
-      {totalItems > itemsPerPage && (
+      {month && totalItems > itemsPerPage && (
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
