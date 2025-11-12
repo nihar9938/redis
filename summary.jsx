@@ -11,12 +11,28 @@ const SummaryPage = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const history = useHistory(); // Hook for navigation (older version)
+  const location = useLocation(); // For older React Router
 
   // Available months
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  // Extract parameters from URL
+  const getParamsFromUrl = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const monthParam = searchParams.get('month');
+    return { month: monthParam };
+  };
+
+  // Set month from URL parameter
+  useEffect(() => {
+    const params = getParamsFromUrl();
+    if (params.month) {
+      setMonth(params.month);
+    }
+  }, []);
 
   // Fetch data based on selected month
   useEffect(() => {
@@ -113,7 +129,19 @@ const SummaryPage = () => {
 
   // Handle month change
   const handleMonthChange = (e) => {
-    setMonth(e.target.value);
+    const selectedMonth = e.target.value;
+    setMonth(selectedMonth);
+    
+    // Update URL with month parameter
+    const newParams = new URLSearchParams();
+    if (selectedMonth) {
+      newParams.set('month', selectedMonth);
+    }
+    
+    history.push({
+      pathname: location.pathname,
+      search: newParams.toString()
+    });
   };
 
   // Handle cluster search change
@@ -121,13 +149,20 @@ const SummaryPage = () => {
     setSearchCluster(e.target.value);
   };
 
-  // Handle Scope Creep Increase row click - redirect to dashboard with cluster filter
+  // Handle Scope Creep Increase row click - redirect to dashboard with cluster and month parameters
   const handleScopeCreepClick = (row) => {
     // Find the cluster value in the row
     const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
-    if (clusterValue && clusterValue !== '0') {
-      // Navigate to dashboard with cluster as query parameter
-      history.push(`/dashboard?cluster=${encodeURIComponent(clusterValue)}`);
+    if (clusterValue && clusterValue !== '0' && month) {
+      // Navigate to dashboard with both cluster and month parameters
+      const newParams = new URLSearchParams();
+      newParams.set('cluster', clusterValue);
+      newParams.set('month', month);
+      
+      history.push({
+        pathname: '/dashboard',
+        search: newParams.toString()
+      });
     }
   };
 
