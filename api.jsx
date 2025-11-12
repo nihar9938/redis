@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated version without replacing blanks with "0")
+// src/Dashboard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -67,6 +67,9 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkDecision, setBulkDecision] = useState('');
+  const [bulkComment, setBulkComment] = useState('');
   const [error, setError] = useState('');
   const [searchFilters, setSearchFilters] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -230,7 +233,7 @@ const Dashboard = () => {
     };
   };
 
-  // Handle checkbox selection
+  // Handle individual checkbox selection
   const handleCheckboxChange = (index) => {
     // Calculate the actual index in the full sorted data array
     const actualIndex = startIndex + index;
@@ -249,6 +252,54 @@ const Dashboard = () => {
         }
       });
     }
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = () => {
+    // Get all selectable rows (not greyed out)
+    const selectableRows = [];
+    
+    currentData.forEach((row, index) => {
+      const actualIndex = startIndex + index;
+      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+      
+      // Only include rows that are not greyed out
+      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
+          decisionValue.toString().toLowerCase() !== 'no change') {
+        selectableRows.push(actualIndex);
+      }
+    });
+    
+    // If all selectable rows are already selected, deselect all
+    const allSelected = selectableRows.every(index => selectedRows.includes(index));
+    
+    if (allSelected) {
+      // Deselect all
+      setSelectedRows(prev => prev.filter(index => !selectableRows.includes(index)));
+    } else {
+      // Select all
+      setSelectedRows(prev => [...new Set([...prev, ...selectableRows])]);
+    }
+  };
+
+  // Check if select all checkbox should be checked
+  const isSelectAllChecked = () => {
+    if (currentData.length === 0) return false;
+    
+    const selectableRows = [];
+    
+    currentData.forEach((row, index) => {
+      const actualIndex = startIndex + index;
+      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+      
+      // Only include rows that are not greyed out
+      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
+          decisionValue.toString().toLowerCase() !== 'no change') {
+        selectableRows.push(actualIndex);
+      }
+    });
+    
+    return selectableRows.length > 0 && selectableRows.every(index => selectedRows.includes(index));
   };
 
   // Handle comment input change
@@ -288,6 +339,46 @@ const Dashboard = () => {
       [key]: value
     }));
     setCurrentPage(1); // Reset to first page when search changes
+  };
+
+  // Handle bulk edit button click
+  const handleBulkEdit = () => {
+    if (selectedRows.length === 0) {
+      setError('Please select at least one row to edit.');
+      return;
+    }
+    
+    // Reset bulk edit values
+    setBulkDecision('');
+    setBulkComment('');
+    
+    // Show bulk edit modal
+    setShowBulkEditModal(true);
+  };
+
+  // Handle bulk edit save
+  const handleBulkEditSave = () => {
+    if (!bulkDecision) {
+      setError('Please select a decision for all selected rows.');
+      return;
+    }
+    
+    // Update selected rows with bulk values
+    const updatedData = [...data];
+    
+    selectedRows.forEach(originalIndex => {
+      updatedData[originalIndex] = {
+        ...updatedData[originalIndex],
+        Decision: bulkDecision,
+        Comment: bulkComment,
+        UpdatedBy: 'System User', // Default value since no input field
+        UpdatedTime: new Date().toISOString()
+      };
+    });
+    
+    setData(updatedData);
+    setShowBulkEditModal(false);
+    setError('');
   };
 
   // Save all changes to MongoDB using your specific API
@@ -358,6 +449,12 @@ const Dashboard = () => {
     setShowSuccessModal(false);
   };
 
+  // Close bulk edit modal
+  const closeBulkEditModal = () => {
+    setShowBulkEditModal(false);
+    setError('');
+  };
+
   if (loading && month) return <div>Loading data for {month}...</div>;
 
   // Get column keys for rendering
@@ -404,7 +501,7 @@ const Dashboard = () => {
       
       {/* Save Button */}
       <button 
-        onClick={handleBulkSave}
+        onClick={handleBulkEdit}
         style={{
           marginBottom: '10px',
           padding: '8px 16px',
@@ -416,7 +513,7 @@ const Dashboard = () => {
           alignSelf: 'flex-start'
         }}
       >
-        Save All Changes
+        Bulk Edit Selected ({selectedRows.length})
       </button>
       
       {/* Scrollable Table Container */}
@@ -449,7 +546,13 @@ const Dashboard = () => {
                       width: '80px'
                     }}
                   >
-                    Revision
+                    <input
+                      type="checkbox"
+                      checked={isSelectAllChecked()}
+                      onChange={handleSelectAll}
+                      title="Select All"
+                      style={{ cursor: 'pointer' }}
+                    />
                   </th>
                   {columnKeys.map((key) => (
                     <th 
@@ -682,6 +785,105 @@ const Dashboard = () => {
           
           <div style={{ marginLeft: '10px', fontSize: '14px' }}>
             Page {currentPage} of {totalItems} ({totalItems} total records)
+          </div>
+        </div>
+      )}
+      
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1001
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            width: '400px',
+            maxWidth: '90%',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
+              Bulk Edit ({selectedRows.length} rows selected)
+            </h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Decision:
+              </label>
+              <select
+                value={bulkDecision}
+                onChange={(e) => setBulkDecision(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select Decision</option>
+                <option value="No Change">No Change</option>
+                <option value="Increase">Increase</option>
+                <option value="Decrease">Decrease</option>
+              </select>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Comment:
+              </label>
+              <textarea
+                value={bulkComment}
+                onChange={(e) => setBulkComment(e.target.value)}
+                placeholder="Enter comment for all selected rows"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  minHeight: '60px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              <button
+                onClick={closeBulkEditModal}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ccc',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkEditSave}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Apply Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
