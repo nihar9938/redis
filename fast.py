@@ -239,6 +239,31 @@ async def update_csv_data_with_path(file_path: str, update_request: UpdateReques
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
 
+
+# GET endpoint to get all summary data (non-paginated) with caching
+@app.get("/summary-data-all", response_model=List[dict])
+async def get_summary_data_all(file_path: str = Query("summary.csv", description="Summary CSV file path")):
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Summary CSV file '{file_path}' not found")
+    
+    try:
+        # Get cached or fresh DataFrame
+        df = get_cached_dataframe(file_path)
+        data = df.to_dict(orient='records')
+        
+        # Convert any non-serializable values to None
+        for row in 
+            for key, value in row.items():
+                if pd.isna(value):
+                    row[key] = None
+                elif isinstance(value, pd.Timestamp):
+                    row[key] = value.isoformat()
+        
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading summary CSV file: {str(e)}")
+
+
 # Clear cache endpoint
 @app.post("/clear-cache")
 async def clear_cache(file_path: str = Query("data.csv", description="CSV file path")):
