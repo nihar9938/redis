@@ -116,15 +116,30 @@ async def get_csv_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
 
-# GET endpoint to get all data (non-paginated) with caching
+# GET endpoint to get all main data with optional cluster filtering
 @app.get("/csv-data-all", response_model=List[dict])
-async def get_csv_data_all(file_path: str = Query("data.csv", description="CSV file path")):
+async def get_csv_data_all(
+    file_path: str = Query("data.csv", description="CSV file path"),
+    cluster: str = Query(None, description="Filter data by cluster name")
+):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"CSV file '{file_path}' not found")
     
     try:
         # Get cached or fresh DataFrame
         df = get_cached_dataframe(file_path)
+        
+        # Filter by cluster if provided
+        if cluster is not None:
+            if 'cluster' not in df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="CSV file does not contain a 'cluster' column"
+                )
+            
+            # Filter rows where cluster matches
+            df = df[df['cluster'].astype(str).str.lower() == cluster.lower()]
+        
         data = df.to_dict(orient='records')
         
         # Convert any non-serializable values to None
