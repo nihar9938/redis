@@ -115,13 +115,26 @@ async def get_csv_data(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
-
-# GET endpoint to get all main data with optional cluster filtering
+# GET endpoint to get all data with month and cluster filtering
 @app.get("/csv-data-all", response_model=List[dict])
 async def get_csv_data_all(
-    file_path: str = Query("data.csv", description="CSV file path"),
+    month: str = Query("january", description="Month name for CSV file (e.g., january, february, etc.)"),
     cluster: str = Query(None, description="Filter data by cluster name")
 ):
+    # Validate month parameter
+    valid_months = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+    ]
+    
+    if month.lower() not in valid_months:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid month. Valid months are: {', '.join(valid_months)}"
+        )
+    
+    file_path = f"{month.lower()}_data.csv"  # Month-based filename
+    
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"CSV file '{file_path}' not found")
     
@@ -129,7 +142,7 @@ async def get_csv_data_all(
         # Get cached or fresh DataFrame
         df = get_cached_dataframe(file_path)
         
-        # Filter by cluster if provided
+        # Apply cluster filter if provided
         if cluster is not None:
             if 'cluster' not in df.columns:
                 raise HTTPException(
