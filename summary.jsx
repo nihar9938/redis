@@ -172,7 +172,7 @@ const SummaryPage = () => {
   const columnKeys = Object.keys(data[0] || {}).filter(key => key.toLowerCase() !== 'month');
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <h2>Summary Page</h2>
       
       {/* Month Dropdown */}
@@ -211,102 +211,100 @@ const SummaryPage = () => {
         </div>
       )}
       
-      {/* Data Table */}
-      {month && (
-        <>
-          {data.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
-              <table 
-                border="3" 
-                cellPadding="5" 
-                cellSpacing="0" 
-                style={{ 
-                  borderCollapse: 'collapse', 
-                  width: '100%', 
-                  backgroundColor: 'white' 
-                }}
-              >
-                <thead>
-                  <tr style={{ backgroundColor: '#f2f2f2' }}>
-                    {columnKeys.map((key) => (
-                      <th 
-                        key={key} 
+      {/* Scrollable Table Container with Fixed Header */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', marginBottom: '0' }}>
+          <table 
+            border="3" 
+            cellPadding="5" 
+            cellSpacing="0" 
+            style={{ 
+              borderCollapse: 'collapse', 
+              width: '100%', 
+              backgroundColor: 'white' 
+            }}
+          >
+            <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                {columnKeys.map((key) => (
+                  <th 
+                    key={key} 
+                    style={{ 
+                      padding: '8px', 
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      border: '3px solid #ddd',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 5,
+                      backgroundColor: '#f2f2f2'
+                    }}
+                    onClick={() => requestSort(key)}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ display: 'flex', alignItems: 'center' }}>
+                        {key}
+                        <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                      </span>
+                      {/* Only show search input for Cluster column */}
+                      {key.toLowerCase() === 'cluster' && (
+                        <input
+                          type="text"
+                          placeholder={`Search ${key}...`}
+                          value={searchCluster}
+                          onChange={handleClusterSearchChange}
+                          style={{
+                            marginTop: '5px',
+                            padding: '4px',
+                            border: '1px solid #ccc',
+                            borderRadius: '2px',
+                            fontSize: '12px',
+                            width: '100%'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedData.map((row, rowIndex) => (
+                <tr 
+                  key={rowIndex} 
+                  style={{ 
+                    backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9'
+                  }}
+                >
+                  {columnKeys.map((key, colIndex) => {
+                    // Check if this is the "Increase" column
+                    const isIncreaseColumn = key.toLowerCase().includes('increase');
+                    
+                    return (
+                      <td 
+                        key={`data-${rowIndex}-${key}`} 
                         style={{ 
                           padding: '8px', 
-                          textAlign: 'left',
-                          fontWeight: 'bold',
                           border: '3px solid #ddd',
-                          cursor: 'pointer',
-                          userSelect: 'none'
+                          verticalAlign: 'top',
+                          cursor: isIncreaseColumn ? 'pointer' : 'default'
                         }}
-                        onClick={() => requestSort(key)}
+                        onClick={isIncreaseColumn ? () => handleIncreaseClick(row) : undefined}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ display: 'flex', alignItems: 'center' }}>
-                            {key}
-                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                          </span>
-                          {/* Only show search input for Cluster column */}
-                          {key.toLowerCase() === 'cluster' && (
-                            <input
-                              type="text"
-                              placeholder={`Search ${key}...`}
-                              value={searchCluster}
-                              onChange={handleClusterSearchChange}
-                              style={{
-                                marginTop: '5px',
-                                padding: '4px',
-                                border: '1px solid #ccc',
-                                borderRadius: '2px',
-                                fontSize: '12px',
-                                width: '100%'
-                              }}
-                            />
-                          )}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedData.map((row, rowIndex) => (
-                    <tr 
-                      key={rowIndex} 
-                      style={{ 
-                        backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9'
-                      }}
-                    >
-                      {columnKeys.map((key, colIndex) => {
-                        // Check if this is the "Increase" column
-                        const isIncreaseColumn = key.toLowerCase().includes('increase');
-                        
-                        return (
-                          <td 
-                            key={`data-${rowIndex}-${key}`} 
-                            style={{ 
-                              padding: '8px', 
-                              border: '3px solid #ddd',
-                              verticalAlign: 'top',
-                              cursor: isIncreaseColumn ? 'pointer' : 'default'
-                            }}
-                            onClick={isIncreaseColumn ? () => handleIncreaseClick(row) : undefined}
-                          >
-                            {row[key] || '0'} {/* Show '0' if value is empty */}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p>No data found for {month}.</p>
-          )}
-        </>
-      )}
+                        {row[key] || '0'} {/* Show '0' if value is empty */}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       
-      {!month && <p>Please select a month to view summary data.</p>}
+      {!month && <p style={{ marginTop: '20px' }}>Please select a month to view summary data.</p>}
     </div>
   );
 };
