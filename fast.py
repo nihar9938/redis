@@ -171,14 +171,15 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
                 detail="Data CSV file must contain 'group_id' and 'pattern' columns"
             )
         
-        # Process the updates and extract cluster information
-        cluster_counts = {}
+        # Process the updates and extract cluster information with ticket counts
+        cluster_ticket_counts = {}
         updated_rows_count = 0
         
         for update_row in update_request.updates:
             group_id = update_row.group_id
             pattern = update_row.pattern
             cluster_name = update_row.cluster  # Get cluster from the main object
+            ticket_count = update_row.ticket_count  # Get ticket count from the main object
             new_data = update_row.data  # This should now work correctly
             
             # Find the row with matching group_id and pattern in data CSV
@@ -199,15 +200,15 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             # Get the index of the matching row
             row_index = matching_rows.index[0]
             
-            # Count this update for the cluster
+            # Count this update for the cluster (using ticket count)
             cluster_name_lower = cluster_name.lower()
-            if cluster_name_lower not in cluster_counts:
-                cluster_counts[cluster_name_lower] = 0
-            cluster_counts[cluster_name_lower] += 1
+            if cluster_name_lower not in cluster_ticket_counts:
+                cluster_ticket_counts[cluster_name_lower] = 0
+            cluster_ticket_counts[cluster_name_lower] += ticket_count
             
             # Update each column in the row (excluding group_id, pattern, and cluster if it was just for counting)
             for col, value in new_data.items():
-                if col not in ['group_id', 'pattern', 'cluster']:  # Don't update these columns
+                if col not in ['group_id', 'pattern', 'cluster', 'ticket_count']:  # Don't update these columns
                     if col in df.columns:
                         df.at[row_index, col] = value
                     else:
@@ -218,8 +219,8 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             
             updated_rows_count += 1
         
-        # Update summary counts based on cluster information
-        if cluster_counts:
+        # Update summary counts based on cluster information with ticket counts
+        if cluster_ticket_counts:
             summary_df = pd.read_csv(summary_file_path)
             
             # Validate that summary file has required columns
@@ -236,26 +237,26 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
                 )
             
             # Update counts for each cluster (cluster is unique key in summary)
-            for cluster_name, count in cluster_counts.items():
+            for cluster_name, total_ticket_count in cluster_ticket_counts.items():
                 # Find the row for this cluster (cluster is the unique key in summary)
                 cluster_row_idx = summary_df[summary_df['cluster'].astype(str).str.lower() == cluster_name].index
                 
                 if len(cluster_row_idx) > 0:
-                    # Update increase and decrease counts
-                    # Subtract from increase, add to decrease
+                    # Update increase and decrease counts using ticket count
+                    # Subtract ticket count from increase, add to decrease
                     current_increase = summary_df.at[cluster_row_idx[0], 'increase']
                     current_decrease = summary_df.at[cluster_row_idx[0], 'decrease']
                     
                     # Update the counts
-                    summary_df.at[cluster_row_idx[0], 'increase'] = current_increase - count
-                    summary_df.at[cluster_row_idx[0], 'decrease'] = current_decrease + count
+                    summary_df.at[cluster_row_idx[0], 'increase'] = current_increase - total_ticket_count
+                    summary_df.at[cluster_row_idx[0], 'decrease'] = current_decrease + total_ticket_count
                 else:
                     # If cluster doesn't exist in summary, create a new row
                     # This might be a new cluster, so just add decrease count
                     new_row = {
                         'cluster': cluster_name,
-                        'increase': 0,
-                        'decrease': count
+                        'increase': -total_ticket_count,  # Subtract ticket count from increase
+                        'decrease': total_ticket_count   # Add ticket count to decrease
                     }
                     summary_df = pd.concat([summary_df, pd.DataFrame([new_row])], ignore_index=True)
             
@@ -273,13 +274,12 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         return {
             "message": "CSV file updated successfully and summary counts updated",
             "updated_rows": updated_rows_count,
-            "cluster_counts": cluster_counts,
+            "cluster_ticket_counts": cluster_ticket_counts,
             "data_file_path": data_file_path,
             "summary_file_path": summary_file_path
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
-
 
 
 
