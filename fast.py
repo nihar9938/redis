@@ -166,54 +166,138 @@ async def get_csv_data_all(
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
-
-# PUT endpoint to update multiple rows and save back to CSV
+# PUT endpoint to update main CSV file and update summary counts
 @app.put("/csv-data", response_model=dict)
-async def update_csv_data(update_request: UpdateRequest, file_path: str = Query("data.csv", description="CSV file path")):
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"CSV file '{file_path}' not found")
+async def update_csv_data(update_request: UpdateRequest, month: str = Query("january", description="Month name for CSV file")):
+    # Validate month parameter
+    valid_months = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+    ]
+    
+    if month.lower() not in valid_months:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid month. Valid months are: {', '.join(valid_months)}"
+        )
+    
+    data_file_path = f"{month.lower()}_data.csv"  # Month-based data filename
+    summary_file_path = f"{month.lower()}_summary.csv"  # Month-based summary filename
+    
+    if not os.path.exists(data_file_path):
+        raise HTTPException(status_code=404, detail=f"Data CSV file '{data_file_path}' not found")
+    
+    if not os.path.exists(summary_file_path):
+        raise HTTPException(status_code=404, detail=f"Summary CSV file '{summary_file_path}' not found")
     
     try:
-        # Read the CSV file
-        df = pd.read_csv(file_path)
+        # Read the data CSV file
+        df = pd.read_csv(data_file_path)
         
-        # Validate indices are within range
-        max_index = len(df) - 1
-        for update_row in update_request.updates:
-            if update_row.index < 0 or update_row.index > max_index:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Index {update_row.index} is out of range (0-{max_index})"
-                )
+        # Process the updates and extract cluster information
+        cluster_counts = {}
         
-        # Apply updates
         for update_row in update_request.updates:
             index = update_row.index
             new_data = update_row.data  # This should now work correctly
             
-            # Update each column in the row
+            # Extract cluster from the update data if present
+            cluster_name = new_data.get('cluster')
+            if cluster_name:
+                cluster_name = str(cluster_name).lower()
+                if cluster_name not in cluster_counts:
+                    cluster_counts[cluster_name] = 0
+                cluster_counts[cluster_name] += 1
+            
+            # Validate index is within range
+            if index < 0 or index >= len(df):
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Index {index} is out of range (0-{len(df)-1})"
+                )
+            
+            # Update each column in the row (excluding cluster if it was just for counting)
             for col, value in new_data.items():
-                if col in df.columns:
-                    df.at[index, col] = value
+                if col != 'cluster':  # Don't update the cluster column itself
+                    if col in df.columns:
+                        df.at[index, col] = value
+                    else:
+                        raise HTTPException(
+                            status_code=400, 
+                            detail=f"Column '{col}' does not exist in the data CSV file"
+                        )
+        
+        # Update summary counts based on cluster information
+        if cluster_counts:
+            summary_df = pd.read_csv(summary_file_path)
+            
+            # Validate that summary file has required columns
+            if 'cluster' not in summary_df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Summary CSV file does not contain a 'cluster' column"
+                )
+            
+            if 'increase' not in summary_df.columns or 'decrease' not in summary_df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Summary CSV file must contain 'increase' and 'decrease' columns"
+                )
+            
+            # Update counts for each cluster
+            for cluster_name, count in cluster_counts.items():
+                # Find the row for this cluster
+                cluster_row_idx = summary_df[summary_df['cluster'].astype(str).str.lower() == cluster_name].index
+                
+                if len(cluster_row_idx) > 0:
+                    # Update increase and decrease counts
+                    # Subtract from increase, add to decrease
+                    current_increase = summary_df.at[cluster_row_idx[0], 'increase']
+                    current_decrease = summary_df.at[cluster_row_idx[0], 'decrease']
+                    
+                    # Update the counts
+                    summary_df.at[cluster_row_idx[0], 'increase'] = current_increase - count
+                    summary_df.at[cluster_row_idx[0], 'decrease'] = current_decrease + count
                 else:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"Column '{col}' does not exist in the CSV file"
-                    )
+                    # If cluster doesn't exist in summary, create a new row
+                    # This might be a new cluster, so just add decrease count
+                    new_row = {
+                        'cluster': cluster_name,
+                        'increase': 0,
+                        'decrease': count
+                    }
+                    summary_df = pd.concat([summary_df, pd.DataFrame([new_row])], ignore_index=True)
+            
+            # Save updated summary file
+            summary_df.to_csv(summary_file_path, index=False)
+            # Clear cache for summary file
+            clear_cache_for_file(summary_file_path)
         
-        # Save the updated DataFrame back to CSV
-        df.to_csv(file_path, index=False)
+        # Save the updated data DataFrame back to CSV
+        df.to_csv(data_file_path, index=False)
         
-        # Clear cache for this file since it was updated
-        clear_cache_for_file(file_path)
+        # Clear cache for both files since they were updated
+        clear_cache_for_file(data_file_path)
         
         return {
-            "message": "CSV file updated successfully",
+            "message": "CSV file updated successfully and summary counts updated",
             "updated_rows": len(update_request.updates),
-            "file_path": file_path
+            "cluster_counts": cluster_counts,
+            "data_file_path": data_file_path,
+            "summary_file_path": summary_file_path
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
+
+
+
+
+
+
+
+
+
+
 
 # PUT endpoint to update CSV file with path parameter
 @app.put("/csv-data/{file_path:path}", response_model=dict)
