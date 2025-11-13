@@ -1,4 +1,4 @@
-// src/Dashboard.jsx
+// src/Dashboard.jsx (Updated with correct API payload structure)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -381,24 +381,50 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API
+  // Save all changes to MongoDB using your specific API with correct payload structure
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Prepare updates array for your specific API
       const updates = selectedRows.map(originalIndex => {
+        // Get the original row data
+        const originalRow = updatedData[originalIndex];
+        
+        // Get the cluster name for this row
+        const clusterName = originalRow['Cluster'] || 
+                           originalRow['cluster'] || 
+                           originalRow['CLUSTER'] || 
+                           'Unknown';
+        
+        // Get the GroupId for this row
+        const groupId = originalRow['GroupId'] || 
+                       originalRow['groupid'] || 
+                       originalRow['GROUPID'] || 
+                       'Unknown';
+        
+        // Get the Pattern for this row
+        const pattern = originalRow['Pattern'] || 
+                       originalRow['pattern'] || 
+                       originalRow['PATTERN'] || 
+                       'Unknown';
+        
         return {
-          index: originalIndex,
-           {
-            Decision: updatedData[originalIndex].Decision,
-            Comment: updatedData[originalIndex].Comment,
+          GroupId: groupId,
+          Pattern: pattern,
+          Cluster: clusterName,
+          data: {
+            Decision: originalRow.Decision,
+            comment: originalRow.Comment, // Note: lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
         };
       });
       
+      // Build API URL with month query parameter
+      const apiUrl = `http://localhost:8000/excel-update?month=${encodeURIComponent(month)}`; // Replace with your API endpoint
+      
       // Send updates to MongoDB
-      const response = await fetch('http://localhost:8000/excel-update', {
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -435,7 +461,7 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
     
     // Update the data in browser memory
     setData(updatedData);
