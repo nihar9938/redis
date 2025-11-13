@@ -166,7 +166,12 @@ async def get_csv_data_all(
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
-# PUT endpoint to update main CSV file and update summary counts
+
+
+
+
+
+# PUT endpoint to update main CSV file using group_id and pattern as unique key
 @app.put("/csv-data", response_model=dict)
 async def update_csv_data(update_request: UpdateRequest, month: str = Query("january", description="Month name for CSV file")):
     # Validate month parameter
@@ -194,38 +199,59 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         # Read the data CSV file
         df = pd.read_csv(data_file_path)
         
+        # Validate that data file has required columns
+        if 'group_id' not in df.columns or 'pattern' not in df.columns:
+            raise HTTPException(
+                status_code=400, 
+                detail="Data CSV file must contain 'group_id' and 'pattern' columns"
+            )
+        
         # Process the updates and extract cluster information
         cluster_counts = {}
+        updated_rows_count = 0
         
         for update_row in update_request.updates:
-            index = update_row.index
+            group_id = update_row.group_id
+            pattern = update_row.pattern
+            cluster_name = update_row.cluster  # Get cluster from the main object
             new_data = update_row.data  # This should now work correctly
             
-            # Extract cluster from the update data if present
-            cluster_name = new_data.get('cluster')
-            if cluster_name:
-                cluster_name = str(cluster_name).lower()
-                if cluster_name not in cluster_counts:
-                    cluster_counts[cluster_name] = 0
-                cluster_counts[cluster_name] += 1
+            # Find the row with matching group_id and pattern in data CSV
+            matching_rows = df[(df['group_id'].astype(str).str.lower() == group_id.lower()) & 
+                              (df['pattern'].astype(str).str.lower() == pattern.lower())]
             
-            # Validate index is within range
-            if index < 0 or index >= len(df):
+            if len(matching_rows) == 0:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No row found with group_id '{group_id}' and pattern '{pattern}'"
+                )
+            elif len(matching_rows) > 1:
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"Index {index} is out of range (0-{len(df)-1})"
+                    detail=f"Multiple rows found with group_id '{group_id}' and pattern '{pattern}'"
                 )
             
-            # Update each column in the row (excluding cluster if it was just for counting)
+            # Get the index of the matching row
+            row_index = matching_rows.index[0]
+            
+            # Count this update for the cluster
+            cluster_name_lower = cluster_name.lower()
+            if cluster_name_lower not in cluster_counts:
+                cluster_counts[cluster_name_lower] = 0
+            cluster_counts[cluster_name_lower] += 1
+            
+            # Update each column in the row (excluding group_id, pattern, and cluster if it was just for counting)
             for col, value in new_data.items():
-                if col != 'cluster':  # Don't update the cluster column itself
+                if col not in ['group_id', 'pattern', 'cluster']:  # Don't update these columns
                     if col in df.columns:
-                        df.at[index, col] = value
+                        df.at[row_index, col] = value
                     else:
                         raise HTTPException(
                             status_code=400, 
                             detail=f"Column '{col}' does not exist in the data CSV file"
                         )
+            
+            updated_rows_count += 1
         
         # Update summary counts based on cluster information
         if cluster_counts:
@@ -244,9 +270,9 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
                     detail="Summary CSV file must contain 'increase' and 'decrease' columns"
                 )
             
-            # Update counts for each cluster
+            # Update counts for each cluster (cluster is unique key in summary)
             for cluster_name, count in cluster_counts.items():
-                # Find the row for this cluster
+                # Find the row for this cluster (cluster is the unique key in summary)
                 cluster_row_idx = summary_df[summary_df['cluster'].astype(str).str.lower() == cluster_name].index
                 
                 if len(cluster_row_idx) > 0:
@@ -281,19 +307,13 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         
         return {
             "message": "CSV file updated successfully and summary counts updated",
-            "updated_rows": len(update_request.updates),
+            "updated_rows": updated_rows_count,
             "cluster_counts": cluster_counts,
             "data_file_path": data_file_path,
             "summary_file_path": summary_file_path
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
-
-
-
-
-
-
 
 
 
