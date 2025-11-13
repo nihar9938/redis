@@ -72,50 +72,7 @@ class PaginatedResponse(BaseModel):
     size: int
     pages: int
 
-# GET endpoint to read CSV file with pagination and caching
-@app.get("/csv-data", response_model=PaginatedResponse)
-async def get_csv_data(
-    page: int = Query(1, ge=1, description="Page number (starting from 1)"),
-    size: int = Query(500, ge=1, le=1000, description="Number of records per page (max 1000)"),
-    file_path: str = Query("data.csv", description="CSV file path")
-):
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"CSV file '{file_path}' not found")
-    
-    try:
-        # Get cached or fresh DataFrame
-        df = get_cached_dataframe(file_path)
-        total_records = len(df)
-        
-        # Calculate pagination
-        start_index = (page - 1) * size
-        end_index = min(start_index + size, total_records)
-        df_page = df.iloc[start_index:end_index]
-        
-        # Convert DataFrame to list of dictionaries
-        data = df_page.to_dict(orient='records')
-        
-        # Convert any non-serializable values to None
-        for row in 
-            for key, value in row.items():
-                if pd.isna(value):
-                    row[key] = None
-                elif isinstance(value, pd.Timestamp):
-                    row[key] = value.isoformat()
-        
-        # Calculate total pages
-        total_pages = (total_records + size - 1) // size  # Ceiling division
-        
-        return PaginatedResponse(
-            data=data,
-            total=total_records,
-            page=page,
-            size=size,
-            pages=total_pages
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
-# GET endpoint to get all data with month and cluster filtering
+# GET endpoint to get all data with month and cluster filtering, but only Decision = increase
 @app.get("/csv-data-all", response_model=List[dict])
 async def get_csv_data_all(
     month: str = Query("january", description="Month name for CSV file (e.g., january, february, etc.)"),
@@ -142,6 +99,16 @@ async def get_csv_data_all(
         # Get cached or fresh DataFrame
         df = get_cached_dataframe(file_path)
         
+        # Apply Decision filter first (only include rows where Decision = increase)
+        if 'Decision' not in df.columns:
+            raise HTTPException(
+                status_code=400, 
+                detail="CSV file does not contain a 'Decision' column"
+            )
+        
+        # Filter rows where Decision is 'increase' (case-insensitive)
+        df = df[df['Decision'].astype(str).str.lower() == 'increase']
+        
         # Apply cluster filter if provided
         if cluster is not None:
             if 'cluster' not in df.columns:
@@ -166,8 +133,6 @@ async def get_csv_data_all(
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
-
-
 
 
 
