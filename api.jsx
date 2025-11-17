@@ -1,9 +1,9 @@
-// src/Dashboard.jsx (Updated with correct API payload structure)
+// src/Dashboard.jsx (Updated with save button logic and loading screen)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex }) => {
+const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, onEdit }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
@@ -17,7 +17,10 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex }) =
       ref={inputRef}
       type="text"
       defaultValue={value || ''}
-      onChange={onChange}
+      onChange={(e) => {
+        onChange(e);
+        onEdit(); // Notify parent of edit
+      }}
       placeholder={placeholder}
       style={{
         width: '100%',
@@ -31,7 +34,7 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex }) =
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex }) => {
+const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, onEdit }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
@@ -44,7 +47,10 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex }) => {
     <select
       ref={dropdownRef}
       defaultValue={value || ''}
-      onChange={onChange}
+      onChange={(e) => {
+        onChange(e);
+        onEdit(); // Notify parent of edit
+      }}
       style={{
         width: '100%',
         padding: '4px',
@@ -75,6 +81,8 @@ const Dashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(200); // 200 records per page
   const [month, setMonth] = useState('October'); // Default to October
+  const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows
+  const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
 
@@ -121,6 +129,7 @@ const Dashboard = () => {
         
         const jsonData = await response.json();
         setData(jsonData);
+        setChangedRows(new Set()); // Reset changed rows when new data loads
       } catch (error) {
         setError('Error loading data from MongoDB: ' + error.message);
         console.error('Error loading ', error);
@@ -302,6 +311,15 @@ const Dashboard = () => {
     return selectableRows.length > 0 && selectableRows.every(index => selectedRows.includes(index));
   };
 
+  // Handle edit notification (when user edits a field)
+  const handleEditNotification = (actualIndex) => {
+    setChangedRows(prev => {
+      const newSet = new Set(prev);
+      newSet.add(actualIndex);
+      return newSet;
+    });
+  };
+
   // Handle comment input change
   const handleCommentChange = (rowIndex, event) => {
     const newValue = event.target.value;
@@ -315,6 +333,8 @@ const Dashboard = () => {
       };
       return newData;
     });
+    
+    handleEditNotification(actualIndex); // Mark row as changed
   };
 
   // Handle decision dropdown change
@@ -330,6 +350,8 @@ const Dashboard = () => {
       };
       return newData;
     });
+    
+    handleEditNotification(actualIndex); // Mark row as changed
   };
 
   // Handle search filter change
@@ -377,43 +399,45 @@ const Dashboard = () => {
     });
     
     setData(updatedData);
+    
+    // Mark all selected rows as changed
+    setChangedRows(prev => {
+      const newSet = new Set(prev);
+      selectedRows.forEach(index => newSet.add(index));
+      return newSet;
+    });
+    
     setShowBulkEditModal(false);
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API with correct payload structure
+  // Save all changes to MongoDB using your specific API with loading screen
   const saveDataToMongoDB = async (updatedData) => {
     try {
+      // Show loading screen
+      setShowLoading(true);
+      
       // Prepare updates array for your specific API
       const updates = selectedRows.map(originalIndex => {
-        // Get the original row data
-        const originalRow = updatedData[originalIndex];
-        
         // Get the cluster name for this row
-        const clusterName = originalRow['Cluster'] || 
-                           originalRow['cluster'] || 
-                           originalRow['CLUSTER'] || 
+        const clusterName = updatedData[originalIndex]['Cluster'] || 
+                           updatedData[originalIndex]['cluster'] || 
+                           updatedData[originalIndex]['CLUSTER'] || 
                            'Unknown';
         
-        // Get the GroupId for this row
-        const groupId = originalRow['GroupId'] || 
-                       originalRow['groupid'] || 
-                       originalRow['GROUPID'] || 
-                       'Unknown';
-        
-        // Get the Pattern for this row
-        const pattern = originalRow['Pattern'] || 
-                       originalRow['pattern'] || 
-                       originalRow['PATTERN'] || 
-                       'Unknown';
-        
         return {
-          GroupId: groupId,
-          Pattern: pattern,
+          GroupId: updatedData[originalIndex]['GroupId'] || 
+                   updatedData[originalIndex]['groupid'] || 
+                   updatedData[originalIndex]['GROUPID'] || 
+                   'Unknown',
+          Pattern: updatedData[originalIndex]['Pattern'] || 
+                   updatedData[originalIndex]['pattern'] || 
+                   updatedData[originalIndex]['PATTERN'] || 
+                   'Unknown',
           Cluster: clusterName,
-          data: {
-            Decision: originalRow.Decision,
-            comment: originalRow.Comment, // Note: lowercase 'c' as in your example
+           {
+            Decision: updatedData[originalIndex].Decision,
+            comment: updatedData[originalIndex].Comment,
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -436,9 +460,14 @@ const Dashboard = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
+      // Hide loading screen
+      setShowLoading(false);
+      
       // Show success modal
       setShowSuccessModal(true);
     } catch (error) {
+      // Hide loading screen
+      setShowLoading(false);
       setError('Error saving data to MongoDB: ' + error.message);
       console.error('Error saving ', error);
     }
@@ -461,13 +490,14 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with loading screen
     
     // Update the data in browser memory
     setData(updatedData);
     
     // Reset states
     setSelectedRows([]);
+    setChangedRows(new Set()); // Clear changed rows after save
   };
 
   // Close success modal
@@ -482,6 +512,10 @@ const Dashboard = () => {
   };
 
   if (loading && month) return <div>Loading data for {month}...</div>;
+
+  // Check if save button should be enabled (any row is selected AND any row has changes)
+  const isSaveEnabled = selectedRows.length > 0 && 
+                        Array.from(changedRows).some(index => selectedRows.includes(index));
 
   // Get column keys for rendering
   const columnKeys = Object.keys(data[0] || {});
@@ -545,14 +579,15 @@ const Dashboard = () => {
       ) : (
         <button 
           onClick={handleBulkSave}
+          disabled={!isSaveEnabled}
           style={{
             marginBottom: '10px',
             padding: '8px 16px',
-            backgroundColor: '#4CAF50',
+            backgroundColor: isSaveEnabled ? '#4CAF50' : '#cccccc', // Green when enabled, grey when disabled
             color: 'white',
-            border: '3px solid #4CAF50',
+            border: '3px solid ' + (isSaveEnabled ? '#4CAF50' : '#cccccc'),
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: isSaveEnabled ? 'pointer' : 'not-allowed',
             alignSelf: 'flex-start'
           }}
         >
@@ -649,6 +684,7 @@ const Dashboard = () => {
                                      decisionValue.toString().toLowerCase() === 'no change';
                   const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
                   const isRowSelected = selectedRows.includes(actualIndex);
+                  const isRowChanged = changedRows.has(actualIndex);
                   
                   return (
                     <tr 
@@ -673,8 +709,8 @@ const Dashboard = () => {
                           type="checkbox"
                           checked={isRowSelected}
                           onChange={() => handleCheckboxChange(rowIndex)}
-                          disabled={isGreyedOut}
-                          style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
+                          disabled={isGreyedOut || isSelectAllChecked()} // Disable if select all is checked
+                          style={{ cursor: (isGreyedOut || isSelectAllChecked()) ? 'not-allowed' : 'pointer' }}
                         />
                       </td>
                       
@@ -698,6 +734,7 @@ const Dashboard = () => {
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
+                                  onEdit={() => handleEditNotification(actualIndex)}
                                 />
                               ) : (
                                 row[key] || ''
@@ -721,6 +758,7 @@ const Dashboard = () => {
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
+                                  onEdit={() => handleEditNotification(actualIndex)}
                                 />
                               ) : (
                                 row[key] || ''
@@ -973,6 +1011,40 @@ const Dashboard = () => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Loading Screen */}
+      {showLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '50px',
+              height: '50px',
+              border: '5px solid #f3f3f3',
+              borderTop: '5px solid #4CAF50',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 10px'
+            }}></div>
+            <p style={{ color: '#333', margin: 0 }}>Saving changes...</p>
           </div>
         </div>
       )}
