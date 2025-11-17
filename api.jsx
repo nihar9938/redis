@@ -1,9 +1,9 @@
-// src/Dashboard.jsx (Updated with save button logic and loading screen)
+// src/Dashboard.jsx (Updated with correct Select All behavior)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, onEdit }) => {
+const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isDisabled }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
@@ -17,24 +17,24 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, onE
       ref={inputRef}
       type="text"
       defaultValue={value || ''}
-      onChange={(e) => {
-        onChange(e);
-        onEdit(); // Notify parent of edit
-      }}
+      onChange={onChange}
       placeholder={placeholder}
+      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
+        cursor: isDisabled ? 'not-allowed' : 'text'
       }}
     />
   );
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, onEdit }) => {
+const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
@@ -47,16 +47,16 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, onEdit }) =>
     <select
       ref={dropdownRef}
       defaultValue={value || ''}
-      onChange={(e) => {
-        onChange(e);
-        onEdit(); // Notify parent of edit
-      }}
+      onChange={onChange}
+      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
+        cursor: isDisabled ? 'not-allowed' : 'pointer'
       }}
     >
       <option value="">Select Decision</option>
@@ -83,6 +83,7 @@ const Dashboard = () => {
   const [month, setMonth] = useState('October'); // Default to October
   const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
+  const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
 
@@ -129,7 +130,6 @@ const Dashboard = () => {
         
         const jsonData = await response.json();
         setData(jsonData);
-        setChangedRows(new Set()); // Reset changed rows when new data loads
       } catch (error) {
         setError('Error loading data from MongoDB: ' + error.message);
         console.error('Error loading ', error);
@@ -265,29 +265,27 @@ const Dashboard = () => {
 
   // Handle select all checkbox
   const handleSelectAll = () => {
-    // Get all selectable rows (not greyed out)
-    const selectableRows = [];
-    
-    currentData.forEach((row, index) => {
-      const actualIndex = startIndex + index;
-      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-      
-      // Only include rows that are not greyed out
-      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
-          decisionValue.toString().toLowerCase() !== 'no change') {
-        selectableRows.push(actualIndex);
-      }
-    });
-    
-    // If all selectable rows are already selected, deselect all
-    const allSelected = selectableRows.every(index => selectedRows.includes(index));
-    
-    if (allSelected) {
+    if (selectAllChecked) {
       // Deselect all
-      setSelectedRows(prev => prev.filter(index => !selectableRows.includes(index)));
+      setSelectedRows([]);
+      setSelectAllChecked(false);
     } else {
-      // Select all
-      setSelectedRows(prev => [...new Set([...prev, ...selectableRows])]);
+      // Select all non-greyed-out rows
+      const selectableRows = [];
+      
+      currentData.forEach((row, index) => {
+        const actualIndex = startIndex + index;
+        const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+        
+        // Only include rows that are not greyed out
+        if (decisionValue.toString().toLowerCase() !== 'decrease' && 
+            decisionValue.toString().toLowerCase() !== 'no change') {
+          selectableRows.push(actualIndex);
+        }
+      });
+      
+      setSelectedRows(selectableRows);
+      setSelectAllChecked(true);
     }
   };
 
@@ -308,16 +306,9 @@ const Dashboard = () => {
       }
     });
     
-    return selectableRows.length > 0 && selectableRows.every(index => selectedRows.includes(index));
-  };
-
-  // Handle edit notification (when user edits a field)
-  const handleEditNotification = (actualIndex) => {
-    setChangedRows(prev => {
-      const newSet = new Set(prev);
-      newSet.add(actualIndex);
-      return newSet;
-    });
+    return selectableRows.length > 0 && 
+           selectableRows.every(index => selectedRows.includes(index)) && 
+           selectedRows.length === selectableRows.length;
   };
 
   // Handle comment input change
@@ -334,7 +325,8 @@ const Dashboard = () => {
       return newData;
     });
     
-    handleEditNotification(actualIndex); // Mark row as changed
+    // Mark row as changed
+    setChangedRows(prev => new Set([...prev, actualIndex]));
   };
 
   // Handle decision dropdown change
@@ -351,7 +343,8 @@ const Dashboard = () => {
       return newData;
     });
     
-    handleEditNotification(actualIndex); // Mark row as changed
+    // Mark row as changed
+    setChangedRows(prev => new Set([...prev, actualIndex]));
   };
 
   // Handle search filter change
@@ -363,55 +356,7 @@ const Dashboard = () => {
     setCurrentPage(1); // Reset to first page when search changes
   };
 
-  // Handle bulk edit button click
-  const handleBulkEdit = () => {
-    if (selectedRows.length === 0) {
-      setError('Please select at least one row to edit.');
-      return;
-    }
-    
-    // Reset bulk edit values
-    setBulkDecision('');
-    setBulkComment('');
-    
-    // Show bulk edit modal
-    setShowBulkEditModal(true);
-  };
-
-  // Handle bulk edit save
-  const handleBulkEditSave = () => {
-    if (!bulkDecision) {
-      setError('Please select a decision for all selected rows.');
-      return;
-    }
-    
-    // Update selected rows with bulk values
-    const updatedData = [...data];
-    
-    selectedRows.forEach(originalIndex => {
-      updatedData[originalIndex] = {
-        ...updatedData[originalIndex],
-        Decision: bulkDecision,
-        Comment: bulkComment,
-        UpdatedBy: 'System User', // Default value since no input field
-        UpdatedTime: new Date().toISOString()
-      };
-    });
-    
-    setData(updatedData);
-    
-    // Mark all selected rows as changed
-    setChangedRows(prev => {
-      const newSet = new Set(prev);
-      selectedRows.forEach(index => newSet.add(index));
-      return newSet;
-    });
-    
-    setShowBulkEditModal(false);
-    setError('');
-  };
-
-  // Save all changes to MongoDB using your specific API with loading screen
+  // Save all changes to MongoDB using your specific API
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
@@ -426,20 +371,13 @@ const Dashboard = () => {
                            'Unknown';
         
         return {
-          GroupId: updatedData[originalIndex]['GroupId'] || 
-                   updatedData[originalIndex]['groupid'] || 
-                   updatedData[originalIndex]['GROUPID'] || 
-                   'Unknown',
-          Pattern: updatedData[originalIndex]['Pattern'] || 
-                   updatedData[originalIndex]['pattern'] || 
-                   updatedData[originalIndex]['PATTERN'] || 
-                   'Unknown',
-          Cluster: clusterName,
+          index: originalIndex,
            {
             Decision: updatedData[originalIndex].Decision,
-            comment: updatedData[originalIndex].Comment,
+            Comment: updatedData[originalIndex].Comment,
             UpdatedBy: 'System User', // Default value since no input field
-            UpdatedTime: new Date().toISOString()
+            UpdatedTime: new Date().toISOString(),
+            Cluster: clusterName // Include cluster in response body
           }
         };
       });
@@ -498,6 +436,7 @@ const Dashboard = () => {
     // Reset states
     setSelectedRows([]);
     setChangedRows(new Set()); // Clear changed rows after save
+    setSelectAllChecked(false); // Reset select all state
   };
 
   // Close success modal
@@ -505,17 +444,11 @@ const Dashboard = () => {
     setShowSuccessModal(false);
   };
 
-  // Close bulk edit modal
-  const closeBulkEditModal = () => {
-    setShowBulkEditModal(false);
-    setError('');
-  };
-
-  if (loading && month) return <div>Loading data for {month}...</div>;
-
-  // Check if save button should be enabled (any row is selected AND any row has changes)
+  // Check if save button should be enabled
   const isSaveEnabled = selectedRows.length > 0 && 
                         Array.from(changedRows).some(index => selectedRows.includes(index));
+
+  if (loading && month) return <div>Loading data for {month}...</div>;
 
   // Get column keys for rendering
   const columnKeys = Object.keys(data[0] || {});
@@ -559,41 +492,23 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
-      {isSelectAllChecked() ? (
-        <button 
-          onClick={handleBulkEdit}
-          style={{
-            marginBottom: '10px',
-            padding: '8px 16px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: '3px solid #4CAF50',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            alignSelf: 'flex-start'
-          }}
-        >
-          Bulk Edit Selected ({selectedRows.length})
-        </button>
-      ) : (
-        <button 
-          onClick={handleBulkSave}
-          disabled={!isSaveEnabled}
-          style={{
-            marginBottom: '10px',
-            padding: '8px 16px',
-            backgroundColor: isSaveEnabled ? '#4CAF50' : '#cccccc', // Green when enabled, grey when disabled
-            color: 'white',
-            border: '3px solid ' + (isSaveEnabled ? '#4CAF50' : '#cccccc'),
-            borderRadius: '4px',
-            cursor: isSaveEnabled ? 'pointer' : 'not-allowed',
-            alignSelf: 'flex-start'
-          }}
-        >
-          Save All Changes
-        </button>
-      )}
+      {/* Save Button - Conditionally styled based on changes */}
+      <button 
+        onClick={handleBulkSave}
+        disabled={!isSaveEnabled}
+        style={{
+          marginBottom: '10px',
+          padding: '8px 16px',
+          backgroundColor: isSaveEnabled ? '#4CAF50' : '#cccccc', // Green when enabled, grey when disabled
+          color: 'white',
+          border: '3px solid ' + (isSaveEnabled ? '#4CAF50' : '#cccccc'),
+          borderRadius: '4px',
+          cursor: isSaveEnabled ? 'pointer' : 'not-allowed',
+          alignSelf: 'flex-start'
+        }}
+      >
+        Save All Changes
+      </button>
       
       {/* Scrollable Table Container */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
@@ -709,8 +624,8 @@ const Dashboard = () => {
                           type="checkbox"
                           checked={isRowSelected}
                           onChange={() => handleCheckboxChange(rowIndex)}
-                          disabled={isGreyedOut || isSelectAllChecked()} // Disable if select all is checked
-                          style={{ cursor: (isGreyedOut || isSelectAllChecked()) ? 'not-allowed' : 'pointer' }}
+                          disabled={isGreyedOut || selectAllChecked} // Disable if greyed out OR select all is checked
+                          style={{ cursor: (isGreyedOut || selectAllChecked) ? 'not-allowed' : 'pointer' }}
                         />
                       </td>
                       
@@ -727,18 +642,14 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
-                                <CommentInput
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleCommentChange(rowIndex, e)}
-                                  placeholder="Enter comment"
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  onEdit={() => handleEditNotification(actualIndex)}
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
+                              <CommentInput
+                                value={row[key] || ''}
+                                onChange={(e) => handleCommentChange(rowIndex, e)}
+                                placeholder="Enter comment"
+                                rowIndex={rowIndex}
+                                actualIndex={actualIndex}
+                                isDisabled={!isRowSelected || selectAllChecked} // Disable if row not selected OR select all is checked
+                              />
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
@@ -752,17 +663,13 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
-                                <DecisionDropdown
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  onEdit={() => handleEditNotification(actualIndex)}
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
+                              <DecisionDropdown
+                                value={row[key] || ''}
+                                onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                rowIndex={rowIndex}
+                                actualIndex={actualIndex}
+                                isDisabled={!isRowSelected || selectAllChecked} // Disable if row not selected OR select all is checked
+                              />
                             </td>
                           );
                         } else {
@@ -871,105 +778,6 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Bulk Edit Modal */}
-      {showBulkEditModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1001
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            width: '400px',
-            maxWidth: '90%',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
-              Bulk Edit ({selectedRows.length} rows selected)
-            </h3>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Decision:
-              </label>
-              <select
-                value={bulkDecision}
-                onChange={(e) => setBulkDecision(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              >
-                <option value="">Select Decision</option>
-                <option value="No Change">No Change</option>
-                <option value="Increase">Increase</option>
-                <option value="Decrease">Decrease</option>
-              </select>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Comment:
-              </label>
-              <textarea
-                value={bulkComment}
-                onChange={(e) => setBulkComment(e.target.value)}
-                placeholder="Enter comment for all selected rows"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  minHeight: '60px',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-              <button
-                onClick={closeBulkEditModal}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#ccc',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  flex: 1
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkEditSave}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  flex: 1
-                }}
-              >
-                Apply Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
       {/* Success Modal */}
       {showSuccessModal && (
         <div style={{
@@ -1027,7 +835,7 @@ const Dashboard = () => {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 9999
+          zIndex: 1001
         }}>
           <div style={{
             backgroundColor: 'white',
