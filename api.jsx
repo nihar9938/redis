@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with correct API payload)
+// src/Dashboard.jsx (Updated with "Change All" button when Select All is checked)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -418,40 +418,33 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API with correct payload structure
+  // Save all changes to MongoDB using your specific API
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
       setShowLoading(true);
       
-      // Prepare updates array for your specific API with correct structure
+      // Prepare updates array for your specific API
       const updates = selectedRows.map(originalIndex => {
-        // Get the original row data
-        const originalRow = updatedData[originalIndex];
-        
-        // Extract required fields from the original row
-        const groupId = originalRow['GroupId'] || 
-                       originalRow['groupid'] || 
-                       originalRow['GROUPID'] || 
-                       'Unknown';
-        
-        const pattern = originalRow['Pattern'] || 
-                       originalRow['pattern'] || 
-                       originalRow['PATTERN'] || 
-                       'Unknown';
-        
-        const cluster = originalRow['Cluster'] || 
-                       originalRow['cluster'] || 
-                       originalRow['CLUSTER'] || 
-                       'Unknown';
+        // Get the cluster name for this row
+        const clusterName = updatedData[originalIndex]['Cluster'] || 
+                           updatedData[originalIndex]['cluster'] || 
+                           updatedData[originalIndex]['CLUSTER'] || 
+                           'Unknown';
         
         return {
-          GroupId: groupId,
-          Pattern: pattern,
-          Cluster: cluster,
+          GroupId: updatedData[originalIndex]['GroupId'] || 
+                   updatedData[originalIndex]['groupid'] || 
+                   updatedData[originalIndex]['GROUPID'] || 
+                   'Unknown',
+          Pattern: updatedData[originalIndex]['Pattern'] || 
+                   updatedData[originalIndex]['pattern'] || 
+                   updatedData[originalIndex]['PATTERN'] || 
+                   'Unknown',
+          Cluster: clusterName,
            {
-            Decision: originalRow.Decision,
-            comment: originalRow.Comment, // Note: lowercase 'c' as in your example
+            Decision: updatedData[originalIndex].Decision,
+            comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -504,7 +497,7 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API
     
     // Update the data in browser memory
     setData(updatedData);
@@ -568,23 +561,41 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Save Button - Conditionally styled based on changes */}
-      <button 
-        onClick={handleBulkSave}
-        disabled={!isSaveEnabled}
-        style={{
-          marginBottom: '10px',
-          padding: '8px 16px',
-          backgroundColor: isSaveEnabled ? '#4CAF50' : '#cccccc', // Green when enabled, grey when disabled
-          color: 'white',
-          border: '3px solid ' + (isSaveEnabled ? '#4CAF50' : '#cccccc'),
-          borderRadius: '4px',
-          cursor: isSaveEnabled ? 'pointer' : 'not-allowed',
-          alignSelf: 'flex-start'
-        }}
-      >
-        Save All Changes
-      </button>
+      {/* Conditional Button - Change All if Select All is checked, Save All otherwise */}
+      {isSelectAllChecked() ? (
+        <button 
+          onClick={() => setShowBulkEditModal(true)}
+          style={{
+            marginBottom: '10px',
+            padding: '8px 16px',
+            backgroundColor: '#2196F3', // Blue color for Change All
+            color: 'white',
+            border: '3px solid #2196F3',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            alignSelf: 'flex-start'
+          }}
+        >
+          Change All ({selectedRows.length} rows)
+        </button>
+      ) : (
+        <button 
+          onClick={handleBulkSave}
+          disabled={!isSaveEnabled}
+          style={{
+            marginBottom: '10px',
+            padding: '8px 16px',
+            backgroundColor: isSaveEnabled ? '#4CAF50' : '#cccccc', // Green when enabled, grey when disabled
+            color: 'white',
+            border: '3px solid ' + (isSaveEnabled ? '#4CAF50' : '#cccccc'),
+            borderRadius: '4px',
+            cursor: isSaveEnabled ? 'pointer' : 'not-allowed',
+            alignSelf: 'flex-start'
+          }}
+        >
+          Save All Changes
+        </button>
+      )}
       
       {/* Scrollable Table Container */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
@@ -718,14 +729,18 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              <CommentInput
-                                value={row[key] || ''}
-                                onChange={(e) => handleCommentChange(rowIndex, e)}
-                                placeholder="Enter comment"
-                                rowIndex={rowIndex}
-                                actualIndex={actualIndex}
-                                isDisabled={selectAllChecked} // Disable if select all is checked
-                              />
+                              {isRowSelected ? (
+                                <CommentInput
+                                  value={row[key] || ''}
+                                  onChange={(e) => handleCommentChange(rowIndex, e)}
+                                  placeholder="Enter comment"
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                />
+                              ) : (
+                                row[key] || ''
+                              )}
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
@@ -739,13 +754,17 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              <DecisionDropdown
-                                value={row[key] || ''}
-                                onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                rowIndex={rowIndex}
-                                actualIndex={actualIndex}
-                                isDisabled={selectAllChecked} // Disable if select all is checked
-                              />
+                              {isRowSelected ? (
+                                <DecisionDropdown
+                                  value={row[key] || ''}
+                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                />
+                              ) : (
+                                row[key] || ''
+                              )}
                             </td>
                           );
                         } else {
@@ -876,7 +895,7 @@ const Dashboard = () => {
             maxWidth: '90%',
             textAlign: 'center'
           }}>
-            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
+            <h3 style={{ color: '#2196F3', marginBottom: '15px' }}>
               Bulk Edit ({selectedRows.length} rows selected)
             </h3>
             
@@ -938,7 +957,7 @@ const Dashboard = () => {
                 onClick={handleBulkEditSave}
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: '#4CAF50',
+                  backgroundColor: '#2196F3',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
