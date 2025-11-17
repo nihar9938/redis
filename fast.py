@@ -210,7 +210,18 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             for col, value in new_data.items():
                 if col not in ['group_id', 'pattern', 'cluster', 'ticket_count']:  # Don't update these columns
                     if col in df.columns:
-                        df.at[row_index, col] = value
+                         # Handle type conversion properly to avoid FutureWarning
+                        current_dtype = df[col].dtype
+                        
+                        # If the column is numeric and we're trying to assign a string, convert appropriately
+                        if pd.api.types.is_numeric_dtype(current_dtype) and not pd.isna(value) and not isinstance(value, (int, float)):
+                            try:
+                                # Try to convert the value to numeric
+                                numeric_value = pd.to_numeric(value, errors='coerce')
+                                df.at[row_index, col] = numeric_value
+                            except:
+                                # If conversion fails, set to NaN or keep original
+                                df.at[row_index, col] = value
                     else:
                         raise HTTPException(
                             status_code=400, 
