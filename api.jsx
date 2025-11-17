@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with Select All modal functionality)
+// src/Dashboard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -70,7 +70,7 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
+  const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -165,6 +165,26 @@ const Dashboard = () => {
       if (aValue === '' && bValue === '') return 0;
       if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
       if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+
+      // Special handling for Decision column to prioritize "Increase"
+      if (sortConfig.key.toLowerCase() === 'decision') {
+        const aLower = aValue.toString().toLowerCase();
+        const bLower = bValue.toString().toLowerCase();
+        
+        if (sortConfig.direction === 'asc') {
+          // For ascending order: Increase first, then No Change, then Decrease
+          const order = { 'increase': 1, 'no change': 2, 'decrease': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        } else {
+          // For descending order: Decrease first, then No Change, then Increase
+          const order = { 'decrease': 1, 'no change': 2, 'increase': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        }
+      }
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -269,6 +289,7 @@ const Dashboard = () => {
       // Deselect all
       setSelectedRows([]);
       setSelectAllChecked(false);
+      setShowBulkEditModal(false); // Close modal when deselecting
     } else {
       // Select all non-greyed-out rows
       const selectableRows = [];
@@ -292,6 +313,28 @@ const Dashboard = () => {
       setBulkComment('');
       setShowBulkEditModal(true);
     }
+  };
+
+  // Check if select all checkbox should be checked
+  const isSelectAllChecked = () => {
+    if (currentData.length === 0) return false;
+    
+    const selectableRows = [];
+    
+    currentData.forEach((row, index) => {
+      const actualIndex = startIndex + index;
+      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+      
+      // Only include rows that are not greyed out
+      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
+          decisionValue.toString().toLowerCase() !== 'no change') {
+        selectableRows.push(actualIndex);
+      }
+    });
+    
+    return selectableRows.length > 0 && 
+           selectableRows.every(index => selectedRows.includes(index)) && 
+           selectedRows.length === selectableRows.length;
   };
 
   // Handle comment input change
@@ -346,7 +389,7 @@ const Dashboard = () => {
       return;
     }
     
-    // Update all selected rows with bulk values
+    // Update selected rows with bulk values
     const updatedData = [...data];
     
     selectedRows.forEach(originalIndex => {
@@ -365,6 +408,12 @@ const Dashboard = () => {
     setChangedRows(prev => new Set([...prev, ...selectedRows]));
     
     // Close modal
+    setShowBulkEditModal(false);
+    setError('');
+  };
+
+  // Close bulk edit modal
+  const closeBulkEditModal = () => {
     setShowBulkEditModal(false);
     setError('');
   };
@@ -455,12 +504,6 @@ const Dashboard = () => {
   // Close success modal
   const closeSuccessModal = () => {
     setShowSuccessModal(false);
-  };
-
-  // Close bulk edit modal
-  const closeBulkEditModal = () => {
-    setShowBulkEditModal(false);
-    setError('');
   };
 
   if (loading && month) return <div>Loading data for {month}...</div>;
@@ -661,18 +704,14 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
-                                <CommentInput
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleCommentChange(rowIndex, e)}
-                                  placeholder="Enter comment"
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
+                              <CommentInput
+                                value={row[key] || ''}
+                                onChange={(e) => handleCommentChange(rowIndex, e)}
+                                placeholder="Enter comment"
+                                rowIndex={rowIndex}
+                                actualIndex={actualIndex}
+                                isDisabled={selectAllChecked} // Disable if select all is checked
+                              />
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
@@ -686,17 +725,13 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
-                                <DecisionDropdown
-                                  value={row[key] || ''}
-                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
-                                />
-                              ) : (
-                                row[key] || ''
-                              )}
+                              <DecisionDropdown
+                                value={row[key] || ''}
+                                onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                rowIndex={rowIndex}
+                                actualIndex={actualIndex}
+                                isDisabled={selectAllChecked} // Disable if select all is checked
+                              />
                             </td>
                           );
                         } else {
