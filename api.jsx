@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with "Change All" button when Select All is checked)
+// src/Dashboard.jsx (Fixed row selection issue)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
