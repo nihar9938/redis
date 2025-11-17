@@ -289,9 +289,20 @@ const SummaryPage = () => {
                           padding: '8px', 
                           border: '3px solid #ddd',
                           verticalAlign: 'top',
-                          cursor: isIncreaseColumn ? 'pointer' : 'default'
+                          cursor: isIncreaseColumn ? 'pointer' : 'default',
+                          color: isIncreaseColumn ? '#1976D2' : 'inherit' // Blue text only
                         }}
                         onClick={isIncreaseColumn ? () => handleIncreaseClick(row) : undefined}
+                        onMouseEnter={(e) => {
+                          if (isIncreaseColumn) {
+                            e.target.style.textDecoration = 'underline';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isIncreaseColumn) {
+                            e.target.style.textDecoration = 'none';
+                          }
+                        }}
                       >
                         {row[key] || '0'} {/* Show '0' if value is empty */}
                       </td>
