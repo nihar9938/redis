@@ -1,4 +1,4 @@
-// src/Dashboard.jsx
+// src/Dashboard.jsx (Updated with correct API payload)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -418,28 +418,42 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API
+  // Save all changes to MongoDB using your specific API with correct payload structure
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
       setShowLoading(true);
       
-      // Prepare updates array for your specific API
+      // Prepare updates array for your specific API with correct structure
       const updates = selectedRows.map(originalIndex => {
-        // Get the cluster name for this row
-        const clusterName = updatedData[originalIndex]['Cluster'] || 
-                           updatedData[originalIndex]['cluster'] || 
-                           updatedData[originalIndex]['CLUSTER'] || 
-                           'Unknown';
+        // Get the original row data
+        const originalRow = updatedData[originalIndex];
+        
+        // Extract required fields from the original row
+        const groupId = originalRow['GroupId'] || 
+                       originalRow['groupid'] || 
+                       originalRow['GROUPID'] || 
+                       'Unknown';
+        
+        const pattern = originalRow['Pattern'] || 
+                       originalRow['pattern'] || 
+                       originalRow['PATTERN'] || 
+                       'Unknown';
+        
+        const cluster = originalRow['Cluster'] || 
+                       originalRow['cluster'] || 
+                       originalRow['CLUSTER'] || 
+                       'Unknown';
         
         return {
-          index: originalIndex,
+          GroupId: groupId,
+          Pattern: pattern,
+          Cluster: cluster,
            {
-            Decision: updatedData[originalIndex].Decision,
-            Comment: updatedData[originalIndex].Comment,
+            Decision: originalRow.Decision,
+            comment: originalRow.Comment, // Note: lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
-            UpdatedTime: new Date().toISOString(),
-            Cluster: clusterName // Include cluster in response body
+            UpdatedTime: new Date().toISOString()
           }
         };
       });
@@ -490,7 +504,7 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with loading screen
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
     
     // Update the data in browser memory
     setData(updatedData);
