@@ -1,16 +1,16 @@
-// src/Dashboard.jsx (Fixed with unique ID tracking)
+// src/Dashboard.jsx (Corrected with proper React reconciliation)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isDisabled }) => {
+const CommentInput = ({ value, onChange, placeholder, rowId }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.value = value || '';
     }
-  }, [value, actualIndex]);
+  }, [value, rowId]); // Only re-render when value or rowId changes
 
   return (
     <input
@@ -19,44 +19,38 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isD
       defaultValue={value || ''}
       onChange={onChange}
       placeholder={placeholder}
-      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box',
-        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
-        cursor: isDisabled ? 'not-allowed' : 'text'
+        boxSizing: 'border-box'
       }}
     />
   );
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }) => {
+const DecisionDropdown = ({ value, onChange, rowId }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
     if (dropdownRef.current) {
       dropdownRef.current.value = value || '';
     }
-  }, [value, actualIndex]);
+  }, [value, rowId]); // Only re-render when value or rowId changes
 
   return (
     <select
       ref={dropdownRef}
       defaultValue={value || ''}
       onChange={onChange}
-      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box',
-        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
-        cursor: isDisabled ? 'not-allowed' : 'pointer'
+        boxSizing: 'border-box'
       }}
     >
       <option value="">Select Decision</option>
@@ -71,7 +65,7 @@ const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
-  const [selectedRows, setSelectedRows] = useState([]);
+  const [selectedRows, setSelectedRows] = useState([]); // Store unique IDs
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkDecision, setBulkDecision] = useState('');
@@ -81,7 +75,7 @@ const Dashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(200); // 200 records per page
   const [month, setMonth] = useState('October'); // Default to October
-  const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows
+  const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows by unique ID
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
   const location = useLocation(); // For older React Router
@@ -133,7 +127,7 @@ const Dashboard = () => {
         // Add unique IDs to each row for proper tracking
         const dataWithIds = jsonData.map((row, index) => ({
           ...row,
-          __uniqueId__: index // Add unique ID for tracking
+          __uniqueId__: `${index}_${Date.now()}` // Create unique ID with timestamp
         }));
         
         setData(dataWithIds);
@@ -272,7 +266,7 @@ const Dashboard = () => {
   // Handle individual checkbox selection
   const handleCheckboxChange = (rowId) => {
     // Get the actual row data using the unique ID
-    const rowData = sortedData.find(row => row.__uniqueId__ === rowId);
+    const rowData = data.find(row => row.__uniqueId__ === rowId);
     const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
     
     // Only allow selection if Decision is not 'Decrease' or 'No Change'
@@ -704,7 +698,7 @@ const Dashboard = () => {
                   
                   return (
                     <tr 
-                      key={`row-${row.__uniqueId__}`} 
+                      key={`row-${row.__uniqueId__}`} // Unique key using unique ID
                       style={getRowStyle(row)}
                     >
                       {/* Checkbox Column - Fixed */}
@@ -748,9 +742,7 @@ const Dashboard = () => {
                                   value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(row.__uniqueId__, e)} // Use unique ID
                                   placeholder="Enter comment"
-                                  rowIndex={colIndex}
-                                  actualIndex={row.__uniqueId__} // Use unique ID
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                  rowId={row.__uniqueId__} // Pass unique ID for reconciliation
                                 />
                               ) : (
                                 row[key] || ''
@@ -772,9 +764,7 @@ const Dashboard = () => {
                                 <DecisionDropdown
                                   value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(row.__uniqueId__, e)} // Use unique ID
-                                  rowIndex={colIndex}
-                                  actualIndex={row.__uniqueId__} // Use unique ID
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                  rowId={row.__uniqueId__} // Pass unique ID for reconciliation
                                 />
                               ) : (
                                 row[key] || ''
