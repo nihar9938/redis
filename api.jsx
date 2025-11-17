@@ -73,9 +73,6 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
-  const [bulkDecision, setBulkDecision] = useState('');
-  const [bulkComment, setBulkComment] = useState('');
   const [error, setError] = useState('');
   const [searchFilters, setSearchFilters] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -289,28 +286,6 @@ const Dashboard = () => {
     }
   };
 
-  // Check if select all checkbox should be checked
-  const isSelectAllChecked = () => {
-    if (currentData.length === 0) return false;
-    
-    const selectableRows = [];
-    
-    currentData.forEach((row, index) => {
-      const actualIndex = startIndex + index;
-      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-      
-      // Only include rows that are not greyed out
-      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
-          decisionValue.toString().toLowerCase() !== 'no change') {
-        selectableRows.push(actualIndex);
-      }
-    });
-    
-    return selectableRows.length > 0 && 
-           selectableRows.every(index => selectedRows.includes(index)) && 
-           selectedRows.length === selectableRows.length;
-  };
-
   // Handle comment input change
   const handleCommentChange = (rowIndex, event) => {
     const newValue = event.target.value;
@@ -444,11 +419,11 @@ const Dashboard = () => {
     setShowSuccessModal(false);
   };
 
+  if (loading && month) return <div>Loading data for {month}...</div>;
+
   // Check if save button should be enabled
   const isSaveEnabled = selectedRows.length > 0 && 
                         Array.from(changedRows).some(index => selectedRows.includes(index));
-
-  if (loading && month) return <div>Loading data for {month}...</div>;
 
   // Get column keys for rendering
   const columnKeys = Object.keys(data[0] || {});
@@ -524,7 +499,7 @@ const Dashboard = () => {
                 backgroundColor: 'white' 
               }}
             >
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
                   {/* Checkbox Column Header - Fixed */}
                   <th 
