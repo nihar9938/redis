@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with correct Select All behavior)
+// src/Dashboard.jsx (Updated with Select All modal functionality)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -73,6 +73,9 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkDecision, setBulkDecision] = useState('');
+  const [bulkComment, setBulkComment] = useState('');
   const [error, setError] = useState('');
   const [searchFilters, setSearchFilters] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -283,6 +286,11 @@ const Dashboard = () => {
       
       setSelectedRows(selectableRows);
       setSelectAllChecked(true);
+      
+      // Show bulk edit modal when select all is checked
+      setBulkDecision('');
+      setBulkComment('');
+      setShowBulkEditModal(true);
     }
   };
 
@@ -329,6 +337,36 @@ const Dashboard = () => {
       [key]: value
     }));
     setCurrentPage(1); // Reset to first page when search changes
+  };
+
+  // Handle bulk edit save
+  const handleBulkEditSave = () => {
+    if (!bulkDecision) {
+      setError('Please select a decision for all selected rows.');
+      return;
+    }
+    
+    // Update all selected rows with bulk values
+    const updatedData = [...data];
+    
+    selectedRows.forEach(originalIndex => {
+      updatedData[originalIndex] = {
+        ...updatedData[originalIndex],
+        Decision: bulkDecision,
+        Comment: bulkComment,
+        UpdatedBy: 'System User', // Default value since no input field
+        UpdatedTime: new Date().toISOString()
+      };
+    });
+    
+    setData(updatedData);
+    
+    // Mark all selected rows as changed
+    setChangedRows(prev => new Set([...prev, ...selectedRows]));
+    
+    // Close modal
+    setShowBulkEditModal(false);
+    setError('');
   };
 
   // Save all changes to MongoDB using your specific API
@@ -419,6 +457,12 @@ const Dashboard = () => {
     setShowSuccessModal(false);
   };
 
+  // Close bulk edit modal
+  const closeBulkEditModal = () => {
+    setShowBulkEditModal(false);
+    setError('');
+  };
+
   if (loading && month) return <div>Loading data for {month}...</div>;
 
   // Check if save button should be enabled
@@ -499,7 +543,7 @@ const Dashboard = () => {
                 backgroundColor: 'white' 
               }}
             >
-              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+              <thead>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
                   {/* Checkbox Column Header - Fixed */}
                   <th 
@@ -599,8 +643,8 @@ const Dashboard = () => {
                           type="checkbox"
                           checked={isRowSelected}
                           onChange={() => handleCheckboxChange(rowIndex)}
-                          disabled={isGreyedOut || selectAllChecked} // Disable if greyed out OR select all is checked
-                          style={{ cursor: (isGreyedOut || selectAllChecked) ? 'not-allowed' : 'pointer' }}
+                          disabled={isGreyedOut}
+                          style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
                         />
                       </td>
                       
@@ -617,14 +661,18 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              <CommentInput
-                                value={row[key] || ''}
-                                onChange={(e) => handleCommentChange(rowIndex, e)}
-                                placeholder="Enter comment"
-                                rowIndex={rowIndex}
-                                actualIndex={actualIndex}
-                                isDisabled={!isRowSelected || selectAllChecked} // Disable if row not selected OR select all is checked
-                              />
+                              {isRowSelected ? (
+                                <CommentInput
+                                  value={row[key] || ''}
+                                  onChange={(e) => handleCommentChange(rowIndex, e)}
+                                  placeholder="Enter comment"
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                />
+                              ) : (
+                                row[key] || ''
+                              )}
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
@@ -638,13 +686,17 @@ const Dashboard = () => {
                                 verticalAlign: 'top'
                               }}
                             >
-                              <DecisionDropdown
-                                value={row[key] || ''}
-                                onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                rowIndex={rowIndex}
-                                actualIndex={actualIndex}
-                                isDisabled={!isRowSelected || selectAllChecked} // Disable if row not selected OR select all is checked
-                              />
+                              {isRowSelected ? (
+                                <DecisionDropdown
+                                  value={row[key] || ''}
+                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                />
+                              ) : (
+                                row[key] || ''
+                              )}
                             </td>
                           );
                         } else {
@@ -749,6 +801,105 @@ const Dashboard = () => {
           
           <div style={{ marginLeft: '10px', fontSize: '14px' }}>
             Page {currentPage} of {totalItems} ({totalItems} total records)
+          </div>
+        </div>
+      )}
+      
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1001
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            width: '400px',
+            maxWidth: '90%',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
+              Bulk Edit ({selectedRows.length} rows selected)
+            </h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Decision:
+              </label>
+              <select
+                value={bulkDecision}
+                onChange={(e) => setBulkDecision(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Select Decision</option>
+                <option value="No Change">No Change</option>
+                <option value="Increase">Increase</option>
+                <option value="Decrease">Decrease</option>
+              </select>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Comment:
+              </label>
+              <textarea
+                value={bulkComment}
+                onChange={(e) => setBulkComment(e.target.value)}
+                placeholder="Enter comment for all selected rows"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  minHeight: '60px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              <button
+                onClick={closeBulkEditModal}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ccc',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkEditSave}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Apply Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
