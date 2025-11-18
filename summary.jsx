@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Updated with month dropdown first)
+// src/SummaryPage.jsx (Updated with cluster and category params)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -335,9 +335,10 @@ const SummaryPage = () => {
                               // Find the cluster value in the row
                               const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
                               if (clusterValue && clusterValue !== '0' && month) {
-                                // Navigate to dashboard with cluster and month parameters
+                                // Navigate to dashboard with cluster, category, and month parameters
                                 const newParams = new URLSearchParams();
                                 newParams.set('cluster', clusterValue);
+                                newParams.set('category', category); // Add category parameter
                                 newParams.set('month', month);
                                 
                                 history.push({
