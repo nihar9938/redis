@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Updated with bullet points instead of dropdown)
+// src/SummaryPage.jsx (Updated with blue text only for Increase column)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -190,7 +190,9 @@ const SummaryPage = () => {
       {/* Category Bullets and Month Dropdown */}
       <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <span style={{ fontWeight: 'bold' }}>Categories:</span>
+          <span style={{ fontWeight: 'bold' }}>
+            Categories:
+          </span>
           {['Alerts', 'User Support Ticket', 'Manual Task'].map(cat => (
             <div
               key={cat}
@@ -325,8 +327,9 @@ const SummaryPage = () => {
                               padding: '8px', 
                               border: '3px solid #ddd',
                               verticalAlign: 'top',
-                              cursor: isIncreaseColumn ? 'pointer' : 'default',
-                              backgroundColor: isIncreaseColumn ? '#e3f2fd' : 'inherit' // Blue highlight for Increase columns
+                              color: isIncreaseColumn ? (category === 'Alerts' ? '#1976D2' : 'inherit') : 'inherit', // Blue only for Alerts
+                              textDecoration: isIncreaseColumn ? 'none' : 'none',
+                              cursor: isIncreaseColumn ? 'pointer' : 'default'
                             }}
                             onClick={isIncreaseColumn ? () => {
                               // Find the cluster value in the row
@@ -346,11 +349,13 @@ const SummaryPage = () => {
                             onMouseEnter={(e) => {
                               if (isIncreaseColumn) {
                                 e.target.style.textDecoration = 'underline';
+                                e.target.style.color = '#1976D2'; // Dark blue on hover
                               }
                             }}
                             onMouseLeave={(e) => {
                               if (isIncreaseColumn) {
                                 e.target.style.textDecoration = 'none';
+                                e.target.style.color = category === 'Alerts' ? '#1976D2' : 'inherit'; // Restore color
                               }
                             }}
                           >
