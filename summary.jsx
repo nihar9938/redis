@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Updated with blue text only for Increase column)
+// src/SummaryPage.jsx (Updated with month dropdown first)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -187,8 +187,28 @@ const SummaryPage = () => {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <h2>Summary Page</h2>
       
-      {/* Category Bullets and Month Dropdown */}
+      {/* Month Dropdown and Category Bullets */}
       <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>
+            Month:
+          </label>
+          <select
+            value={month}
+            onChange={handleMonthChange}
+            style={{
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            {months.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+        
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <span style={{ fontWeight: 'bold' }}>
             Categories:
@@ -210,26 +230,6 @@ const SummaryPage = () => {
               • {cat}
             </div>
           ))}
-        </div>
-        
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 'bold' }}>
-            Month:
-          </label>
-          <select
-            value={month}
-            onChange={handleMonthChange}
-            style={{
-              padding: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              fontSize: '14px'
-            }}
-          >
-            {months.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
         </div>
       </div>
       
@@ -327,7 +327,7 @@ const SummaryPage = () => {
                               padding: '8px', 
                               border: '3px solid #ddd',
                               verticalAlign: 'top',
-                              color: isIncreaseColumn ? (category === 'Alerts' ? '#1976D2' : 'inherit') : 'inherit', // Blue only for Alerts
+                              color: isIncreaseColumn && category === 'Alerts' ? '#1976D2' : 'inherit', // Blue only for Alerts
                               textDecoration: isIncreaseColumn ? 'none' : 'none',
                               cursor: isIncreaseColumn ? 'pointer' : 'default'
                             }}
