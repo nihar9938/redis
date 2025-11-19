@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Corrected with proper Select All functionality)
+// src/Dashboard.jsx (Corrected with proper select/deselect logic)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -276,22 +276,29 @@ const Dashboard = () => {
       // Deselect all
       setSelectedRows([]);
       setSelectAllChecked(false);
+      setShowBulkEditModal(false); // Close modal when deselecting
     } else {
-      // Select all non-greyed-out rows on current page
+      // Select all non-greyed-out rows
       const selectableRows = [];
       
-      currentData.forEach(row => {
+      currentData.forEach((row, index) => {
+        const actualIndex = startIndex + index;
         const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
         
         // Only include rows that are not greyed out
         if (decisionValue.toString().toLowerCase() !== 'decrease' && 
             decisionValue.toString().toLowerCase() !== 'no change') {
-          selectableRows.push(row.__uniqueId__); // Use unique ID
+          selectableRows.push(actualIndex);
         }
       });
       
       setSelectedRows(selectableRows);
       setSelectAllChecked(true);
+      
+      // Show bulk edit modal when select all is checked
+      setBulkDecision('');
+      setBulkComment('');
+      setShowBulkEditModal(true);
     }
   };
 
@@ -301,18 +308,19 @@ const Dashboard = () => {
     
     const selectableRows = [];
     
-    currentData.forEach(row => {
+    currentData.forEach((row, index) => {
+      const actualIndex = startIndex + index;
       const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
       
       // Only include rows that are not greyed out
       if (decisionValue.toString().toLowerCase() !== 'decrease' && 
           decisionValue.toString().toLowerCase() !== 'no change') {
-        selectableRows.push(row.__uniqueId__); // Use unique ID
+        selectableRows.push(actualIndex);
       }
     });
     
     return selectableRows.length > 0 && 
-           selectableRows.every(id => selectedRows.includes(id)) && 
+           selectableRows.every(index => selectedRows.includes(index)) && 
            selectedRows.length === selectableRows.length;
   };
 
@@ -371,17 +379,14 @@ const Dashboard = () => {
     // Update selected rows with bulk values
     const updatedData = [...data];
     
-    selectedRows.forEach(rowId => {
-      const rowIndex = updatedData.findIndex(row => row.__uniqueId__ === rowId);
-      if (rowIndex !== -1) {
-        updatedData[rowIndex] = {
-          ...updatedData[rowIndex],
-          Decision: bulkDecision,
-          Comment: bulkComment,
-          UpdatedBy: 'System User', // Default value since no input field
-          UpdatedTime: new Date().toISOString()
-        };
-      }
+    selectedRows.forEach(originalIndex => {
+      updatedData[originalIndex] = {
+        ...updatedData[originalIndex],
+        Decision: bulkDecision,
+        Comment: bulkComment,
+        UpdatedBy: 'System User', // Default value since no input field
+        UpdatedTime: new Date().toISOString()
+      };
     });
     
     setData(updatedData);
@@ -407,29 +412,26 @@ const Dashboard = () => {
       setShowLoading(true);
       
       // Prepare updates array for your specific API
-      const updates = selectedRows.map(rowId => {
-        const originalIndex = updatedData.findIndex(row => row.__uniqueId__ === rowId);
-        const originalRow = updatedData[originalIndex];
-        
+      const updates = selectedRows.map(originalIndex => {
         // Get the cluster name for this row
-        const clusterName = originalRow['Cluster'] || 
-                           originalRow['cluster'] || 
-                           originalRow['CLUSTER'] || 
+        const clusterName = updatedData[originalIndex]['Cluster'] || 
+                           updatedData[originalIndex]['cluster'] || 
+                           updatedData[originalIndex]['CLUSTER'] || 
                            'Unknown';
         
         return {
-          GroupId: originalRow['GroupId'] || 
-                   originalRow['groupid'] || 
-                   originalRow['GROUPID'] || 
+          GroupId: updatedData[originalIndex]['GroupId'] || 
+                   updatedData[originalIndex]['groupid'] || 
+                   updatedData[originalIndex]['GROUPID'] || 
                    'Unknown',
-          Pattern: originalRow['Pattern'] || 
-                   originalRow['pattern'] || 
-                   originalRow['PATTERN'] || 
+          Pattern: updatedData[originalIndex]['Pattern'] || 
+                   updatedData[originalIndex]['pattern'] || 
+                   updatedData[originalIndex]['PATTERN'] || 
                    'Unknown',
           Cluster: clusterName,
            {
-            Decision: originalRow.Decision,
-            comment: originalRow.Comment, // Note: lowercase 'c' as in your example
+            Decision: updatedData[originalIndex].Decision,
+            comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -474,15 +476,12 @@ const Dashboard = () => {
 
     const updatedData = [...data];
     
-    selectedRows.forEach(rowId => {
-      const rowIndex = updatedData.findIndex(row => row.__uniqueId__ === rowId);
-      if (rowIndex !== -1) {
-        updatedData[rowIndex] = {
-          ...updatedData[rowIndex],
-          UpdatedBy: 'System User', // Default value since no input field
-          UpdatedTime: new Date().toISOString()
-        };
-      }
+    selectedRows.forEach(originalIndex => {
+      updatedData[originalIndex] = {
+        ...updatedData[originalIndex],
+        UpdatedBy: 'System User', // Default value since no input field
+        UpdatedTime: new Date().toISOString()
+      };
     });
     
     await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API
@@ -549,8 +548,8 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Change All if Select All is checked, Save All otherwise */}
-      {selectAllChecked ? (
+      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
+      {isSelectAllChecked() ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
           style={{
@@ -673,11 +672,11 @@ const Dashboard = () => {
                   const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
                                      decisionValue.toString().toLowerCase() === 'no change';
                   const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
-                  const isRowSelected = selectedRows.includes(row.__uniqueId__); // Use unique ID
+                  const isRowSelected = selectedRows.includes(actualIndex);
                   
                   return (
                     <tr 
-                      key={`row-${row.__uniqueId__}`} // Use unique ID as key
+                      key={`row-${actualIndex}`} 
                       style={getRowStyle(row)}
                     >
                       {/* Checkbox Column - Fixed */}
@@ -706,23 +705,23 @@ const Dashboard = () => {
                       {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
                         if (key.toLowerCase() === 'comment') {
-                          // If this is the Comment column, render input if row is selected and select all is not checked
+                          // If this is the Comment column, render input if row is selected
                           return (
                             <td 
-                              key={`comment-${row.__uniqueId__}-${key}`} 
+                              key={`comment-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected && !selectAllChecked ? (
+                              {isRowSelected ? (
                                 <CommentInput
                                   value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
-                                  actualIndex={row.__uniqueId__} // Use unique ID
+                                  actualIndex={actualIndex}
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
@@ -731,22 +730,22 @@ const Dashboard = () => {
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
-                          // If this is the Decision column, render dropdown if row is selected and select all is not checked
+                          // If this is the Decision column, render dropdown if row is selected
                           return (
                             <td 
-                              key={`decision-${row.__uniqueId__}-${key}`} 
+                              key={`decision-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected && !selectAllChecked ? (
+                              {isRowSelected ? (
                                 <DecisionDropdown
                                   value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
-                                  actualIndex={row.__uniqueId__} // Use unique ID
+                                  actualIndex={actualIndex}
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
@@ -758,7 +757,7 @@ const Dashboard = () => {
                           // For other columns, render the data
                           return (
                             <td 
-                              key={`data-${row.__uniqueId__}-${key}`} 
+                              key={`data-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
