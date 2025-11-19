@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Corrected with proper select/deselect logic)
+// src/Dashboard.jsx (Updated with proper individual edit activation)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -84,6 +84,7 @@ const Dashboard = () => {
   const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows by unique ID
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
+  const [individualEditsEnabled, setIndividualEditsEnabled] = useState(true); // Track individual edit state
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
 
@@ -262,9 +263,31 @@ const Dashboard = () => {
         decisionValue.toString().toLowerCase() !== 'no change') {
       setSelectedRows(prev => {
         if (prev.includes(actualIndex)) {
-          return prev.filter(i => i !== actualIndex);
+          // Remove from selection
+          const newSelection = prev.filter(i => i !== actualIndex);
+          
+          // If not all rows are selected anymore, enable individual edits
+          if (newSelection.length < currentData.length) {
+            setIndividualEditsEnabled(true);
+          }
+          
+          return newSelection;
         } else {
-          return [...prev, actualIndex];
+          // Add to selection
+          const newSelection = [...prev, actualIndex];
+          
+          // If all selectable rows are now selected, disable individual edits
+          const selectableRows = currentData.filter(row => {
+            const rowDecision = row['Decision'] || row['decision'] || row['DECISION'] || '';
+            return rowDecision.toString().toLowerCase() !== 'decrease' && 
+                   rowDecision.toString().toLowerCase() !== 'no change';
+          }).length;
+          
+          if (newSelection.length === selectableRows) {
+            setIndividualEditsEnabled(false);
+          }
+          
+          return newSelection;
         }
       });
     }
@@ -276,6 +299,7 @@ const Dashboard = () => {
       // Deselect all
       setSelectedRows([]);
       setSelectAllChecked(false);
+      setIndividualEditsEnabled(true); // Enable individual edits when deselecting
       setShowBulkEditModal(false); // Close modal when deselecting
     } else {
       // Select all non-greyed-out rows
@@ -294,6 +318,7 @@ const Dashboard = () => {
       
       setSelectedRows(selectableRows);
       setSelectAllChecked(true);
+      setIndividualEditsEnabled(false); // Disable individual edits when selecting all
       
       // Show bulk edit modal when select all is checked
       setBulkDecision('');
@@ -319,9 +344,14 @@ const Dashboard = () => {
       }
     });
     
-    return selectableRows.length > 0 && 
-           selectableRows.every(index => selectedRows.includes(index)) && 
-           selectedRows.length === selectableRows.length;
+    const allSelectableSelected = selectableRows.length > 0 && 
+                                  selectableRows.every(index => selectedRows.includes(index)) && 
+                                  selectedRows.length === selectableRows.length;
+    
+    // Update individual edits state based on selection
+    setIndividualEditsEnabled(!allSelectableSelected);
+    
+    return allSelectableSelected;
   };
 
   // Handle comment input change
@@ -493,6 +523,7 @@ const Dashboard = () => {
     setSelectedRows([]);
     setChangedRows(new Set()); // Clear changed rows after save
     setSelectAllChecked(false); // Reset select all state
+    setIndividualEditsEnabled(true); // Enable individual edits after save
   };
 
   // Close success modal
@@ -722,7 +753,7 @@ const Dashboard = () => {
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                  isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
                                 row[key] || ''
@@ -746,7 +777,7 @@ const Dashboard = () => {
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
-                                  isDisabled={selectAllChecked} // Disable if select all is checked
+                                  isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
                                 row[key] || ''
