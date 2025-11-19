@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with correct Select All workflow)
+// src/Dashboard.jsx (Corrected with proper Select All functionality)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -277,7 +277,7 @@ const Dashboard = () => {
       setSelectedRows([]);
       setSelectAllChecked(false);
     } else {
-      // Select all non-greyed-out rows
+      // Select all non-greyed-out rows on current page
       const selectableRows = [];
       
       currentData.forEach(row => {
@@ -550,7 +550,7 @@ const Dashboard = () => {
       )}
       
       {/* Conditional Button - Change All if Select All is checked, Save All otherwise */}
-      {isSelectAllChecked() ? (
+      {selectAllChecked ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
           style={{
@@ -673,11 +673,11 @@ const Dashboard = () => {
                   const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
                                      decisionValue.toString().toLowerCase() === 'no change';
                   const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
-                  const isRowSelected = selectedRows.includes(actualIndex);
+                  const isRowSelected = selectedRows.includes(row.__uniqueId__); // Use unique ID
                   
                   return (
                     <tr 
-                      key={`row-${actualIndex}`} 
+                      key={`row-${row.__uniqueId__}`} // Use unique ID as key
                       style={getRowStyle(row)}
                     >
                       {/* Checkbox Column - Fixed */}
@@ -709,20 +709,20 @@ const Dashboard = () => {
                           // If this is the Comment column, render input if row is selected and select all is not checked
                           return (
                             <td 
-                              key={`comment-${actualIndex}-${key}`} 
+                              key={`comment-${row.__uniqueId__}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected && !selectAllChecked ? ( // Disable if select all is checked
+                              {isRowSelected && !selectAllChecked ? (
                                 <CommentInput
                                   value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
+                                  actualIndex={row.__uniqueId__} // Use unique ID
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
@@ -734,19 +734,19 @@ const Dashboard = () => {
                           // If this is the Decision column, render dropdown if row is selected and select all is not checked
                           return (
                             <td 
-                              key={`decision-${actualIndex}-${key}`} 
+                              key={`decision-${row.__uniqueId__}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected && !selectAllChecked ? ( // Disable if select all is checked
+                              {isRowSelected && !selectAllChecked ? (
                                 <DecisionDropdown
                                   value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
+                                  actualIndex={row.__uniqueId__} // Use unique ID
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
@@ -758,7 +758,7 @@ const Dashboard = () => {
                           // For other columns, render the data
                           return (
                             <td 
-                              key={`data-${actualIndex}-${key}`} 
+                              key={`data-${row.__uniqueId__}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
