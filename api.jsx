@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated without default Decision sort and correct payload)
+// src/Dashboard.jsx (Corrected with isSaveEnabled function)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -358,7 +358,7 @@ const Dashboard = () => {
       const newData = [...prevData];
       newData[actualIndex] = {
         ...newData[actualIndex],
-        Comment: newValue // Changed from 'comment' to 'Comment'
+        Comment: newValue
       };
       return newData;
     });
@@ -408,7 +408,7 @@ const Dashboard = () => {
       updatedData[originalIndex] = {
         ...updatedData[originalIndex],
         Decision: bulkDecision,
-        Comment: bulkComment, // Changed from 'comment' to 'Comment'
+        Comment: bulkComment,
         UpdatedBy: 'System User', // Default value since no input field
         UpdatedTime: new Date().toISOString()
       };
@@ -429,6 +429,14 @@ const Dashboard = () => {
     setShowBulkEditModal(false);
     setError('');
   };
+
+  // Check if save button should be enabled (only when there are selected rows with changes)
+  const isSaveEnabled = React.useMemo(() => {
+    if (selectedRows.length === 0) return false;
+    
+    // Check if any selected row has been modified
+    return selectedRows.some(originalIndex => changedRows.has(originalIndex));
+  }, [selectedRows, changedRows]);
 
   // Save all changes to MongoDB using your specific API with correct payload
   const saveDataToMongoDB = async (updatedData) => {
