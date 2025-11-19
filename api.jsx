@@ -1,16 +1,16 @@
-// src/Dashboard.jsx (Updated with Select All disabling individual edits)
+// src/Dashboard.jsx (Updated with correct Select All workflow)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowId, isDisabled }) => {
+const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isDisabled }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.value = value || '';
     }
-  }, [value, rowId]);
+  }, [value, actualIndex]);
 
   return (
     <input
@@ -34,14 +34,14 @@ const CommentInput = ({ value, onChange, placeholder, rowId, isDisabled }) => {
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowId, isDisabled }) => {
+const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
     if (dropdownRef.current) {
       dropdownRef.current.value = value || '';
     }
-  }, [value, rowId]);
+  }, [value, actualIndex]);
 
   return (
     <select
@@ -276,7 +276,6 @@ const Dashboard = () => {
       // Deselect all
       setSelectedRows([]);
       setSelectAllChecked(false);
-      setShowBulkEditModal(false); // Close modal when deselecting
     } else {
       // Select all non-greyed-out rows
       const selectableRows = [];
@@ -293,11 +292,6 @@ const Dashboard = () => {
       
       setSelectedRows(selectableRows);
       setSelectAllChecked(true);
-      
-      // Show bulk edit modal when select all is checked
-      setBulkDecision('');
-      setBulkComment('');
-      setShowBulkEditModal(true);
     }
   };
 
@@ -555,7 +549,7 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
+      {/* Conditional Button - Change All if Select All is checked, Save All otherwise */}
       {isSelectAllChecked() ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
@@ -605,7 +599,7 @@ const Dashboard = () => {
                 backgroundColor: 'white' 
               }}
             >
-              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+              <thead>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
                   {/* Checkbox Column Header - Fixed */}
                   <th 
@@ -680,7 +674,6 @@ const Dashboard = () => {
                                      decisionValue.toString().toLowerCase() === 'no change';
                   const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
                   const isRowSelected = selectedRows.includes(actualIndex);
-                  const isRowChanged = changedRows.has(actualIndex);
                   
                   return (
                     <tr 
@@ -713,7 +706,7 @@ const Dashboard = () => {
                       {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
                         if (key.toLowerCase() === 'comment') {
-                          // If this is the Comment column, render input if row is selected
+                          // If this is the Comment column, render input if row is selected and select all is not checked
                           return (
                             <td 
                               key={`comment-${actualIndex}-${key}`} 
@@ -728,7 +721,8 @@ const Dashboard = () => {
                                   value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
-                                  rowId={actualIndex}
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
@@ -737,7 +731,7 @@ const Dashboard = () => {
                             </td>
                           );
                         } else if (key.toLowerCase() === 'decision') {
-                          // If this is the Decision column, render dropdown if row is selected
+                          // If this is the Decision column, render dropdown if row is selected and select all is not checked
                           return (
                             <td 
                               key={`decision-${actualIndex}-${key}`} 
@@ -751,7 +745,8 @@ const Dashboard = () => {
                                 <DecisionDropdown
                                   value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                  rowId={actualIndex}
+                                  rowIndex={rowIndex}
+                                  actualIndex={actualIndex}
                                   isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
