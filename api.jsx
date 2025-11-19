@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Corrected with isSaveEnabled function)
+// src/Dashboard.jsx (Updated with proper Comments handling)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -358,7 +358,7 @@ const Dashboard = () => {
       const newData = [...prevData];
       newData[actualIndex] = {
         ...newData[actualIndex],
-        Comment: newValue
+        Comments: newValue // Changed to 'Comments' to match API
       };
       return newData;
     });
@@ -408,7 +408,7 @@ const Dashboard = () => {
       updatedData[originalIndex] = {
         ...updatedData[originalIndex],
         Decision: bulkDecision,
-        Comment: bulkComment,
+        Comments: bulkComment, // Changed to 'Comments' to match API
         UpdatedBy: 'System User', // Default value since no input field
         UpdatedTime: new Date().toISOString()
       };
@@ -430,7 +430,7 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Check if save button should be enabled (only when there are selected rows with changes)
+  // Check if save button should be enabled
   const isSaveEnabled = React.useMemo(() => {
     if (selectedRows.length === 0) return false;
     
@@ -438,7 +438,7 @@ const Dashboard = () => {
     return selectedRows.some(originalIndex => changedRows.has(originalIndex));
   }, [selectedRows, changedRows]);
 
-  // Save all changes to MongoDB using your specific API with correct payload
+  // Save all changes to MongoDB using your specific API with correct payload structure
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
@@ -477,7 +477,7 @@ const Dashboard = () => {
           TicketCount: ticketCount, // Added TicketCount to payload
            {
             Decision: updatedData[originalIndex].Decision,
-            comment: updatedData[originalIndex].Comment, // Changed to lowercase 'comment'
+            Comments: updatedData[originalIndex].Comments, // Changed to uppercase 'Comments' to match API
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -551,14 +551,6 @@ const Dashboard = () => {
 
   // Get column keys for rendering (excluding the unique ID)
   const columnKeys = Object.keys(data[0] || {}).filter(key => key !== '__uniqueId__');
-
-  // Rename "Comment" column to "Comments" in the UI
-  const displayColumnKeys = columnKeys.map(key => {
-    if (key.toLowerCase() === 'comment') {
-      return 'Comments'; // Change display name
-    }
-    return key;
-  });
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -673,55 +665,48 @@ const Dashboard = () => {
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
-                  {displayColumnKeys.map((key) => {
-                    const originalKey = columnKeys.find(k => 
-                      k.toLowerCase() === key.toLowerCase() || 
-                      (key.toLowerCase() === 'comments' && k.toLowerCase() === 'comment')
-                    ) || key;
-                    
-                    return (
-                      <th 
-                        key={key} 
-                        style={{ 
-                          padding: '8px', 
-                          textAlign: 'left',
-                          fontWeight: 'bold',
-                          border: '3px solid #ddd',
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 5,
-                          backgroundColor: '#f2f2f2'
-                        }}
-                        onClick={() => requestSort(originalKey)}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ display: 'flex', alignItems: 'center' }}>
-                            {key}
-                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(originalKey)}</span>
-                          </span>
-                          {/* Only show search input for GroupId and Cluster columns */}
-                          {(originalKey.toLowerCase() === 'groupid' || originalKey.toLowerCase() === 'cluster') && (
-                            <input
-                              type="text"
-                              placeholder={`Search ${originalKey}...`}
-                              value={searchFilters[originalKey] || ''}
-                              onChange={(e) => handleSearchChange(originalKey, e.target.value)}
-                              style={{
-                                marginTop: '5px',
-                                padding: '4px',
-                                border: '1px solid #ccc',
-                                borderRadius: '2px',
-                                fontSize: '12px',
-                                width: '100%'
-                              }}
-                            />
-                          )}
-                        </div>
-                      </th>
-                    );
-                  })}
+                  {columnKeys.map((key) => (
+                    <th 
+                      key={key} 
+                      style={{ 
+                        padding: '8px', 
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        border: '3px solid #ddd',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 5,
+                        backgroundColor: '#f2f2f2'
+                      }}
+                      onClick={() => requestSort(key)}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ display: 'flex', alignItems: 'center' }}>
+                          {key}
+                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                        </span>
+                        {/* Only show search input for GroupId and Cluster columns */}
+                        {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
+                          <input
+                            type="text"
+                            placeholder={`Search ${key}...`}
+                            value={searchFilters[key] || ''}
+                            onChange={(e) => handleSearchChange(key, e.target.value)}
+                            style={{
+                              marginTop: '5px',
+                              padding: '4px',
+                              border: '1px solid #ccc',
+                              borderRadius: '2px',
+                              fontSize: '12px',
+                              width: '100%'
+                            }}
+                          />
+                        )}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -761,17 +746,12 @@ const Dashboard = () => {
                       </td>
                       
                       {/* Data Columns */}
-                      {displayColumnKeys.map((displayKey, colIndex) => {
-                        const actualKey = columnKeys.find(k => 
-                          k.toLowerCase() === displayKey.toLowerCase() || 
-                          (displayKey.toLowerCase() === 'comments' && k.toLowerCase() === 'comment')
-                        ) || displayKey;
-                        
-                        if (actualKey.toLowerCase() === 'comment') {
-                          // If this is the Comment column (displayed as Comments), render input if row is selected
+                      {columnKeys.map((key, colIndex) => {
+                        if (key.toLowerCase() === 'comments') {
+                          // If this is the Comments column, render input if row is selected
                           return (
                             <td 
-                              key={`comment-${actualIndex}-${actualKey}`} 
+                              key={`comment-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
@@ -780,7 +760,7 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <CommentInput
-                                  value={row[actualKey] || ''}
+                                  value={row[key] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
@@ -788,15 +768,15 @@ const Dashboard = () => {
                                   isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
-                                row[actualKey] || ''
+                                row[key] || ''
                               )}
                             </td>
                           );
-                        } else if (actualKey.toLowerCase() === 'decision') {
+                        } else if (key.toLowerCase() === 'decision') {
                           // If this is the Decision column, render dropdown if row is selected
                           return (
                             <td 
-                              key={`decision-${actualIndex}-${actualKey}`} 
+                              key={`decision-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
@@ -805,14 +785,14 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <DecisionDropdown
-                                  value={row[actualKey] || ''}
+                                  value={row[key] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                   isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
-                                row[actualKey] || ''
+                                row[key] || ''
                               )}
                             </td>
                           );
@@ -820,14 +800,14 @@ const Dashboard = () => {
                           // For other columns, render the data
                           return (
                             <td 
-                              key={`data-${actualIndex}-${actualKey}`} 
+                              key={`data-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {row[actualKey] || ''}
+                              {row[key] || ''}
                             </td>
                           );
                         }
