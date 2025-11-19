@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Fully corrected version)
+// src/Dashboard.jsx (Updated without default Decision sort and correct payload)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -70,7 +70,7 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -161,7 +161,7 @@ const Dashboard = () => {
     });
   }, [data, searchFilters]);
 
-  // Sorting function (with Decision prioritization)
+  // Sorting function (no default sort)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.key) return filteredData;
 
@@ -173,26 +173,6 @@ const Dashboard = () => {
       if (aValue === '' && bValue === '') return 0;
       if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
       if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
-
-      // Special handling for Decision column to prioritize "Increase"
-      if (sortConfig.key.toLowerCase() === 'decision') {
-        const aLower = aValue.toString().toLowerCase();
-        const bLower = bValue.toString().toLowerCase();
-        
-        if (sortConfig.direction === 'asc') {
-          // For ascending order: Increase first, then No Change, then Decrease
-          const order = { 'increase': 1, 'no change': 2, 'decrease': 3 };
-          const aOrder = order[aLower] || 4;
-          const bOrder = order[bLower] || 4;
-          return aOrder - bOrder;
-        } else {
-          // For descending order: Decrease first, then No Change, then Increase
-          const order = { 'decrease': 1, 'no change': 2, 'increase': 3 };
-          const aOrder = order[aLower] || 4;
-          const bOrder = order[bLower] || 4;
-          return aOrder - bOrder;
-        }
-      }
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -378,7 +358,7 @@ const Dashboard = () => {
       const newData = [...prevData];
       newData[actualIndex] = {
         ...newData[actualIndex],
-        Comment: newValue
+        Comment: newValue // Changed from 'comment' to 'Comment'
       };
       return newData;
     });
@@ -428,7 +408,7 @@ const Dashboard = () => {
       updatedData[originalIndex] = {
         ...updatedData[originalIndex],
         Decision: bulkDecision,
-        Comment: bulkComment,
+        Comment: bulkComment, // Changed from 'comment' to 'Comment'
         UpdatedBy: 'System User', // Default value since no input field
         UpdatedTime: new Date().toISOString()
       };
@@ -450,13 +430,13 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API
+  // Save all changes to MongoDB using your specific API with correct payload
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
       setShowLoading(true);
       
-      // Prepare updates array for your specific API
+      // Prepare updates array for your specific API with correct payload structure
       const updates = selectedRows.map(originalIndex => {
         // Get the cluster name for this row
         const clusterName = updatedData[originalIndex]['Cluster'] || 
@@ -464,19 +444,32 @@ const Dashboard = () => {
                            updatedData[originalIndex]['CLUSTER'] || 
                            'Unknown';
         
+        // Get the GroupId for this row
+        const groupId = updatedData[originalIndex]['GroupId'] || 
+                       updatedData[originalIndex]['groupid'] || 
+                       updatedData[originalIndex]['GROUPID'] || 
+                       'Unknown';
+        
+        // Get the Pattern for this row
+        const pattern = updatedData[originalIndex]['Pattern'] || 
+                       updatedData[originalIndex]['pattern'] || 
+                       updatedData[originalIndex]['PATTERN'] || 
+                       'Unknown';
+        
+        // Get the TicketCount for this row
+        const ticketCount = updatedData[originalIndex]['TicketCount'] || 
+                           updatedData[originalIndex]['ticketcount'] || 
+                           updatedData[originalIndex]['TICKETCOUNT'] || 
+                           '0';
+        
         return {
-          GroupId: updatedData[originalIndex]['GroupId'] || 
-                   updatedData[originalIndex]['groupid'] || 
-                   updatedData[originalIndex]['GROUPID'] || 
-                   'Unknown',
-          Pattern: updatedData[originalIndex]['Pattern'] || 
-                   updatedData[originalIndex]['pattern'] || 
-                   updatedData[originalIndex]['PATTERN'] || 
-                   'Unknown',
+          GroupId: groupId,
+          Pattern: pattern,
           Cluster: clusterName,
+          TicketCount: ticketCount, // Added TicketCount to payload
            {
             Decision: updatedData[originalIndex].Decision,
-            comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
+            comment: updatedData[originalIndex].Comment, // Changed to lowercase 'comment'
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -529,7 +522,7 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload
     
     // Update the data in browser memory
     setData(updatedData);
@@ -548,12 +541,16 @@ const Dashboard = () => {
 
   if (loading && month) return <div>Loading data for {month}...</div>;
 
-  // Check if save button should be enabled
-  const isSaveEnabled = selectedRows.length > 0 && 
-                        Array.from(changedRows).some(rowId => selectedRows.includes(rowId));
-
   // Get column keys for rendering (excluding the unique ID)
-  const columnKeys = Object.keys(data[0] || {});
+  const columnKeys = Object.keys(data[0] || {}).filter(key => key !== '__uniqueId__');
+
+  // Rename "Comment" column to "Comments" in the UI
+  const displayColumnKeys = columnKeys.map(key => {
+    if (key.toLowerCase() === 'comment') {
+      return 'Comments'; // Change display name
+    }
+    return key;
+  });
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -668,48 +665,55 @@ const Dashboard = () => {
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
-                  {columnKeys.map((key) => (
-                    <th 
-                      key={key} 
-                      style={{ 
-                        padding: '8px', 
-                        textAlign: 'left',
-                        fontWeight: 'bold',
-                        border: '3px solid #ddd',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 5,
-                        backgroundColor: '#f2f2f2'
-                      }}
-                      onClick={() => requestSort(key)}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ display: 'flex', alignItems: 'center' }}>
-                          {key}
-                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                        </span>
-                        {/* Only show search input for GroupId and Cluster columns */}
-                        {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
-                          <input
-                            type="text"
-                            placeholder={`Search ${key}...`}
-                            value={searchFilters[key] || ''}
-                            onChange={(e) => handleSearchChange(key, e.target.value)}
-                            style={{
-                              marginTop: '5px',
-                              padding: '4px',
-                              border: '1px solid #ccc',
-                              borderRadius: '2px',
-                              fontSize: '12px',
-                              width: '100%'
-                            }}
-                          />
-                        )}
-                      </div>
-                    </th>
-                  ))}
+                  {displayColumnKeys.map((key) => {
+                    const originalKey = columnKeys.find(k => 
+                      k.toLowerCase() === key.toLowerCase() || 
+                      (key.toLowerCase() === 'comments' && k.toLowerCase() === 'comment')
+                    ) || key;
+                    
+                    return (
+                      <th 
+                        key={key} 
+                        style={{ 
+                          padding: '8px', 
+                          textAlign: 'left',
+                          fontWeight: 'bold',
+                          border: '3px solid #ddd',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 5,
+                          backgroundColor: '#f2f2f2'
+                        }}
+                        onClick={() => requestSort(originalKey)}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ display: 'flex', alignItems: 'center' }}>
+                            {key}
+                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(originalKey)}</span>
+                          </span>
+                          {/* Only show search input for GroupId and Cluster columns */}
+                          {(originalKey.toLowerCase() === 'groupid' || originalKey.toLowerCase() === 'cluster') && (
+                            <input
+                              type="text"
+                              placeholder={`Search ${originalKey}...`}
+                              value={searchFilters[originalKey] || ''}
+                              onChange={(e) => handleSearchChange(originalKey, e.target.value)}
+                              style={{
+                                marginTop: '5px',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '2px',
+                                fontSize: '12px',
+                                width: '100%'
+                              }}
+                            />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -749,12 +753,17 @@ const Dashboard = () => {
                       </td>
                       
                       {/* Data Columns */}
-                      {columnKeys.map((key, colIndex) => {
-                        if (key.toLowerCase() === 'comment') {
-                          // If this is the Comment column, render input if row is selected
+                      {displayColumnKeys.map((displayKey, colIndex) => {
+                        const actualKey = columnKeys.find(k => 
+                          k.toLowerCase() === displayKey.toLowerCase() || 
+                          (displayKey.toLowerCase() === 'comments' && k.toLowerCase() === 'comment')
+                        ) || displayKey;
+                        
+                        if (actualKey.toLowerCase() === 'comment') {
+                          // If this is the Comment column (displayed as Comments), render input if row is selected
                           return (
                             <td 
-                              key={`comment-${actualIndex}-${key}`} 
+                              key={`comment-${actualIndex}-${actualKey}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
@@ -763,7 +772,7 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <CommentInput
-                                  value={row[key] || ''}
+                                  value={row[actualKey] || ''}
                                   onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
                                   rowIndex={rowIndex}
@@ -771,15 +780,15 @@ const Dashboard = () => {
                                   isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
-                                row[key] || ''
+                                row[actualKey] || ''
                               )}
                             </td>
                           );
-                        } else if (key.toLowerCase() === 'decision') {
+                        } else if (actualKey.toLowerCase() === 'decision') {
                           // If this is the Decision column, render dropdown if row is selected
                           return (
                             <td 
-                              key={`decision-${actualIndex}-${key}`} 
+                              key={`decision-${actualIndex}-${actualKey}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
@@ -788,14 +797,14 @@ const Dashboard = () => {
                             >
                               {isRowSelected ? (
                                 <DecisionDropdown
-                                  value={row[key] || ''}
+                                  value={row[actualKey] || ''}
                                   onChange={(e) => handleDecisionChange(rowIndex, e)}
                                   rowIndex={rowIndex}
                                   actualIndex={actualIndex}
                                   isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
                                 />
                               ) : (
-                                row[key] || ''
+                                row[actualKey] || ''
                               )}
                             </td>
                           );
@@ -803,14 +812,14 @@ const Dashboard = () => {
                           // For other columns, render the data
                           return (
                             <td 
-                              key={`data-${actualIndex}-${key}`} 
+                              key={`data-${actualIndex}-${actualKey}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {row[key] || ''}
+                              {row[actualKey] || ''}
                             </td>
                           );
                         }
