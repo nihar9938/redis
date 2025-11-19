@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Corrected with proper React reconciliation)
+// src/Dashboard.jsx (Updated without default Decision sorting)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -64,7 +64,7 @@ const DecisionDropdown = ({ value, onChange, rowId }) => {
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
   const [selectedRows, setSelectedRows] = useState([]); // Store unique IDs
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -154,7 +154,7 @@ const Dashboard = () => {
     });
   }, [data, searchFilters]);
 
-  // Sorting function
+  // Sorting function (now with no default sort)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.key) return filteredData;
 
@@ -166,26 +166,6 @@ const Dashboard = () => {
       if (aValue === '' && bValue === '') return 0;
       if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
       if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
-
-      // Special handling for Decision column to prioritize "Increase"
-      if (sortConfig.key.toLowerCase() === 'decision') {
-        const aLower = aValue.toString().toLowerCase();
-        const bLower = bValue.toString().toLowerCase();
-        
-        if (sortConfig.direction === 'asc') {
-          // For ascending order: Increase first, then No Change, then Decrease
-          const order = { 'increase': 1, 'no change': 2, 'decrease': 3 };
-          const aOrder = order[aLower] || 4;
-          const bOrder = order[bLower] || 4;
-          return aOrder - bOrder;
-        } else {
-          // For descending order: Decrease first, then No Change, then Increase
-          const order = { 'decrease': 1, 'no change': 2, 'increase': 3 };
-          const aOrder = order[aLower] || 4;
-          const bOrder = order[bLower] || 4;
-          return aOrder - bOrder;
-        }
-      }
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -621,7 +601,7 @@ const Dashboard = () => {
                 backgroundColor: 'white' 
               }}
             >
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
                   {/* Checkbox Column Header - Fixed */}
                   <th 
