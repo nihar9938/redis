@@ -1,16 +1,16 @@
-// src/Dashboard.jsx (Updated without default Decision sorting)
+// src/Dashboard.jsx (Updated with Select All disabling individual edits)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowId }) => {
+const CommentInput = ({ value, onChange, placeholder, rowId, isDisabled }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.value = value || '';
     }
-  }, [value, rowId]); // Only re-render when value or rowId changes
+  }, [value, rowId]);
 
   return (
     <input
@@ -19,38 +19,44 @@ const CommentInput = ({ value, onChange, placeholder, rowId }) => {
       defaultValue={value || ''}
       onChange={onChange}
       placeholder={placeholder}
+      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
+        cursor: isDisabled ? 'not-allowed' : 'text'
       }}
     />
   );
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowId }) => {
+const DecisionDropdown = ({ value, onChange, rowId, isDisabled }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
     if (dropdownRef.current) {
       dropdownRef.current.value = value || '';
     }
-  }, [value, rowId]); // Only re-render when value or rowId changes
+  }, [value, rowId]);
 
   return (
     <select
       ref={dropdownRef}
       defaultValue={value || ''}
       onChange={onChange}
+      disabled={isDisabled}
       style={{
         width: '100%',
         padding: '4px',
         border: '1px solid #ccc',
         borderRadius: '2px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: isDisabled ? '#f0f0f0' : 'white',
+        cursor: isDisabled ? 'not-allowed' : 'pointer'
       }}
     >
       <option value="">Select Decision</option>
@@ -65,7 +71,7 @@ const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
-  const [selectedRows, setSelectedRows] = useState([]); // Store unique IDs
+  const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkDecision, setBulkDecision] = useState('');
@@ -154,7 +160,7 @@ const Dashboard = () => {
     });
   }, [data, searchFilters]);
 
-  // Sorting function (now with no default sort)
+  // Sorting function (no default sort)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.key) return filteredData;
 
@@ -244,19 +250,21 @@ const Dashboard = () => {
   };
 
   // Handle individual checkbox selection
-  const handleCheckboxChange = (rowId) => {
-    // Get the actual row data using the unique ID
-    const rowData = data.find(row => row.__uniqueId__ === rowId);
+  const handleCheckboxChange = (index) => {
+    // Calculate the actual index in the full sorted data array
+    const actualIndex = startIndex + index;
+    
+    const rowData = sortedData[actualIndex];
     const decisionValue = rowData['Decision'] || rowData['decision'] || rowData['DECISION'] || '';
     
     // Only allow selection if Decision is not 'Decrease' or 'No Change'
     if (decisionValue.toString().toLowerCase() !== 'decrease' && 
         decisionValue.toString().toLowerCase() !== 'no change') {
       setSelectedRows(prev => {
-        if (prev.includes(rowId)) {
-          return prev.filter(id => id !== rowId);
+        if (prev.includes(actualIndex)) {
+          return prev.filter(i => i !== actualIndex);
         } else {
-          return [...prev, rowId];
+          return [...prev, actualIndex];
         }
       });
     }
@@ -315,43 +323,39 @@ const Dashboard = () => {
   };
 
   // Handle comment input change
-  const handleCommentChange = (rowId, event) => {
+  const handleCommentChange = (rowIndex, event) => {
     const newValue = event.target.value;
+    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
     
     setData(prevData => {
-      return prevData.map(row => {
-        if (row.__uniqueId__ === rowId) {
-          return {
-            ...row,
-            Comment: newValue
-          };
-        }
-        return row;
-      });
+      const newData = [...prevData];
+      newData[actualIndex] = {
+        ...newData[actualIndex],
+        Comment: newValue
+      };
+      return newData;
     });
     
     // Mark row as changed
-    setChangedRows(prev => new Set([...prev, rowId]));
+    setChangedRows(prev => new Set([...prev, actualIndex]));
   };
 
   // Handle decision dropdown change
-  const handleDecisionChange = (rowId, event) => {
+  const handleDecisionChange = (rowIndex, event) => {
     const newValue = event.target.value;
+    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
     
     setData(prevData => {
-      return prevData.map(row => {
-        if (row.__uniqueId__ === rowId) {
-          return {
-            ...row,
-            Decision: newValue
-          };
-        }
-        return row;
-      });
+      const newData = [...prevData];
+      newData[actualIndex] = {
+        ...newData[actualIndex],
+        Decision: newValue
+      };
+      return newData;
     });
     
     // Mark row as changed
-    setChangedRows(prev => new Set([...prev, rowId]));
+    setChangedRows(prev => new Set([...prev, actualIndex]));
   };
 
   // Handle search filter change
@@ -551,7 +555,7 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Change All if Select All is checked, Save All otherwise */}
+      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
       {isSelectAllChecked() ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
@@ -670,15 +674,17 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {currentData.map((row) => {
+                {currentData.map((row, rowIndex) => {
                   const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
                   const isGreyedOut = decisionValue.toString().toLowerCase() === 'decrease' || 
                                      decisionValue.toString().toLowerCase() === 'no change';
-                  const isRowSelected = selectedRows.includes(row.__uniqueId__); // Use unique ID
+                  const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
+                  const isRowSelected = selectedRows.includes(actualIndex);
+                  const isRowChanged = changedRows.has(actualIndex);
                   
                   return (
                     <tr 
-                      key={`row-${row.__uniqueId__}`} // Unique key using unique ID
+                      key={`row-${actualIndex}`} 
                       style={getRowStyle(row)}
                     >
                       {/* Checkbox Column - Fixed */}
@@ -698,7 +704,7 @@ const Dashboard = () => {
                         <input
                           type="checkbox"
                           checked={isRowSelected}
-                          onChange={() => handleCheckboxChange(row.__uniqueId__)} // Use unique ID
+                          onChange={() => handleCheckboxChange(rowIndex)}
                           disabled={isGreyedOut}
                           style={{ cursor: isGreyedOut ? 'not-allowed' : 'pointer' }}
                         />
@@ -710,19 +716,20 @@ const Dashboard = () => {
                           // If this is the Comment column, render input if row is selected
                           return (
                             <td 
-                              key={`comment-${row.__uniqueId__}-${key}`} 
+                              key={`comment-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
+                              {isRowSelected && !selectAllChecked ? ( // Disable if select all is checked
                                 <CommentInput
                                   value={row[key] || ''}
-                                  onChange={(e) => handleCommentChange(row.__uniqueId__, e)} // Use unique ID
+                                  onChange={(e) => handleCommentChange(rowIndex, e)}
                                   placeholder="Enter comment"
-                                  rowId={row.__uniqueId__} // Pass unique ID for reconciliation
+                                  rowId={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
                                 row[key] || ''
@@ -733,18 +740,19 @@ const Dashboard = () => {
                           // If this is the Decision column, render dropdown if row is selected
                           return (
                             <td 
-                              key={`decision-${row.__uniqueId__}-${key}`} 
+                              key={`decision-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
                                 verticalAlign: 'top'
                               }}
                             >
-                              {isRowSelected ? (
+                              {isRowSelected && !selectAllChecked ? ( // Disable if select all is checked
                                 <DecisionDropdown
                                   value={row[key] || ''}
-                                  onChange={(e) => handleDecisionChange(row.__uniqueId__, e)} // Use unique ID
-                                  rowId={row.__uniqueId__} // Pass unique ID for reconciliation
+                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
+                                  rowId={actualIndex}
+                                  isDisabled={selectAllChecked} // Disable if select all is checked
                                 />
                               ) : (
                                 row[key] || ''
@@ -755,7 +763,7 @@ const Dashboard = () => {
                           // For other columns, render the data
                           return (
                             <td 
-                              key={`data-${row.__uniqueId__}-${key}`} 
+                              key={`data-${actualIndex}-${key}`} 
                               style={{ 
                                 padding: '8px', 
                                 border: '3px solid #ddd',
