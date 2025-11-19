@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with proper individual edit activation)
+// src/Dashboard.jsx (Fixed with proper dependency management)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -85,14 +85,10 @@ const Dashboard = () => {
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
   const [individualEditsEnabled, setIndividualEditsEnabled] = useState(true); // Track individual edit state
+  
+  // Get URL parameters once on component mount
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
-
-  // Available months
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
   // Extract parameters from URL
   const getParamsFromUrl = () => {
@@ -106,8 +102,9 @@ const Dashboard = () => {
   useEffect(() => {
     const params = getParamsFromUrl();
     setMonth(params.month || 'October'); // Default to October if no month in URL
-  }, [location.search]);
+  }, []); // Only run once on mount
 
+  // Fetch data based on selected month
   useEffect(() => {
     const fetchData = async () => {
       if (!month) return; // Don't fetch if no month is selected
@@ -149,7 +146,7 @@ const Dashboard = () => {
     if (month) {
       fetchData();
     }
-  }, [month, location.search]); // Re-fetch when month or URL search parameters change
+  }, [month]); // Re-fetch when month changes
 
   // Apply filters (excluding cluster since it's handled in API)
   const filteredData = React.useMemo(() => {
@@ -267,7 +264,13 @@ const Dashboard = () => {
           const newSelection = prev.filter(i => i !== actualIndex);
           
           // If not all rows are selected anymore, enable individual edits
-          if (newSelection.length < currentData.length) {
+          const selectableRows = currentData.filter(row => {
+            const rowDecision = row['Decision'] || row['decision'] || row['DECISION'] || '';
+            return rowDecision.toString().toLowerCase() !== 'decrease' && 
+                   rowDecision.toString().toLowerCase() !== 'no change';
+          }).length;
+          
+          if (newSelection.length < selectableRows) {
             setIndividualEditsEnabled(true);
           }
           
