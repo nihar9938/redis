@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Fixed with proper dependency management)
+// src/Dashboard.jsx (Fully corrected version)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -70,7 +70,7 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
+  const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -85,10 +85,14 @@ const Dashboard = () => {
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
   const [individualEditsEnabled, setIndividualEditsEnabled] = useState(true); // Track individual edit state
-  
-  // Get URL parameters once on component mount
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
+
+  // Available months
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
 
   // Extract parameters from URL
   const getParamsFromUrl = () => {
@@ -102,9 +106,8 @@ const Dashboard = () => {
   useEffect(() => {
     const params = getParamsFromUrl();
     setMonth(params.month || 'October'); // Default to October if no month in URL
-  }, []); // Only run once on mount
+  }, [location.search]);
 
-  // Fetch data based on selected month
   useEffect(() => {
     const fetchData = async () => {
       if (!month) return; // Don't fetch if no month is selected
@@ -146,7 +149,7 @@ const Dashboard = () => {
     if (month) {
       fetchData();
     }
-  }, [month]); // Re-fetch when month changes
+  }, [month, location.search]); // Re-fetch when month or URL search parameters change
 
   // Apply filters (excluding cluster since it's handled in API)
   const filteredData = React.useMemo(() => {
@@ -158,7 +161,7 @@ const Dashboard = () => {
     });
   }, [data, searchFilters]);
 
-  // Sorting function (no default sort)
+  // Sorting function (with Decision prioritization)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.key) return filteredData;
 
@@ -170,6 +173,26 @@ const Dashboard = () => {
       if (aValue === '' && bValue === '') return 0;
       if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
       if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+
+      // Special handling for Decision column to prioritize "Increase"
+      if (sortConfig.key.toLowerCase() === 'decision') {
+        const aLower = aValue.toString().toLowerCase();
+        const bLower = bValue.toString().toLowerCase();
+        
+        if (sortConfig.direction === 'asc') {
+          // For ascending order: Increase first, then No Change, then Decrease
+          const order = { 'increase': 1, 'no change': 2, 'decrease': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        } else {
+          // For descending order: Decrease first, then No Change, then Increase
+          const order = { 'decrease': 1, 'no change': 2, 'increase': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        }
+      }
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -264,13 +287,7 @@ const Dashboard = () => {
           const newSelection = prev.filter(i => i !== actualIndex);
           
           // If not all rows are selected anymore, enable individual edits
-          const selectableRows = currentData.filter(row => {
-            const rowDecision = row['Decision'] || row['decision'] || row['DECISION'] || '';
-            return rowDecision.toString().toLowerCase() !== 'decrease' && 
-                   rowDecision.toString().toLowerCase() !== 'no change';
-          }).length;
-          
-          if (newSelection.length < selectableRows) {
+          if (newSelection.length < currentData.length) {
             setIndividualEditsEnabled(true);
           }
           
@@ -347,14 +364,9 @@ const Dashboard = () => {
       }
     });
     
-    const allSelectableSelected = selectableRows.length > 0 && 
-                                  selectableRows.every(index => selectedRows.includes(index)) && 
-                                  selectedRows.length === selectableRows.length;
-    
-    // Update individual edits state based on selection
-    setIndividualEditsEnabled(!allSelectableSelected);
-    
-    return allSelectableSelected;
+    return selectableRows.length > 0 && 
+           selectableRows.every(index => selectedRows.includes(index)) && 
+           selectedRows.length === selectableRows.length;
   };
 
   // Handle comment input change
@@ -541,7 +553,7 @@ const Dashboard = () => {
                         Array.from(changedRows).some(rowId => selectedRows.includes(rowId));
 
   // Get column keys for rendering (excluding the unique ID)
-  const columnKeys = Object.keys(data[0] || {}).filter(key => key !== '__uniqueId__');
+  const columnKeys = Object.keys(data[0] || {});
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
