@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Corrected with isSaveEnabled function defined)
+// src/Dashboard.jsx (Fixed with proper save button and API payload)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -97,7 +97,7 @@ const Dashboard = () => {
   // Header mappings for display names
   const headerMappings = {
     'Decision': 'Decision',
-    'Comment': 'Comment',
+    'Comments': 'Comments',
     'UpdatedBy': 'Updated By',
     'UpdatedTime': 'Updated Time',
     'Cluster': 'Cluster',
@@ -118,7 +118,7 @@ const Dashboard = () => {
     return { cluster, month: monthParam, category };
   };
 
-  // Set month and category from URL parameter (with October as default)
+  // Set month from URL parameter (with October as default)
   useEffect(() => {
     const params = getParamsFromUrl();
     setMonth(params.month || 'October'); // Default to October if no month in URL
@@ -389,7 +389,7 @@ const Dashboard = () => {
       const newData = [...prevData];
       newData[actualIndex] = {
         ...newData[actualIndex],
-        Comment: newValue
+        Comments: newValue // Changed from 'Comment' to 'Comments'
       };
       return newData;
     });
@@ -439,7 +439,7 @@ const Dashboard = () => {
       updatedData[originalIndex] = {
         ...updatedData[originalIndex],
         Decision: bulkDecision,
-        Comment: bulkComment,
+        Comments: bulkComment, // Changed from 'Comment' to 'Comments'
         UpdatedBy: 'System User', // Default value since no input field
         UpdatedTime: new Date().toISOString()
       };
@@ -475,19 +475,25 @@ const Dashboard = () => {
                            updatedData[originalIndex]['CLUSTER'] || 
                            'Unknown';
         
+        // Get the GroupId for this row
+        const groupId = updatedData[originalIndex]['GroupId'] || 
+                       updatedData[originalIndex]['groupid'] || 
+                       updatedData[originalIndex]['GROUPID'] || 
+                       'Unknown';
+        
+        // Get the Pattern for this row
+        const pattern = updatedData[originalIndex]['Pattern'] || 
+                       updatedData[originalIndex]['pattern'] || 
+                       updatedData[originalIndex]['PATTERN'] || 
+                       'Unknown';
+        
         return {
-          GroupId: updatedData[originalIndex]['GroupId'] || 
-                   updatedData[originalIndex]['groupid'] || 
-                   updatedData[originalIndex]['GROUPID'] || 
-                   'Unknown',
-          Pattern: updatedData[originalIndex]['Pattern'] || 
-                   updatedData[originalIndex]['pattern'] || 
-                   updatedData[originalIndex]['PATTERN'] || 
-                   'Unknown',
+          GroupId: groupId,
+          Pattern: pattern,
           Cluster: clusterName,
            {
             Decision: updatedData[originalIndex].Decision,
-            comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
+            Comments: updatedData[originalIndex].Comments, // Changed to 'Comments' (capital C) as per your API
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -677,53 +683,48 @@ const Dashboard = () => {
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
-                  {columnKeys.map((key) => {
-                    // Get the display name for the header
-                    const displayName = headerMappings[key] || key;
-                    
-                    return (
-                      <th 
-                        key={key} 
-                        style={{ 
-                          padding: '8px', 
-                          textAlign: 'left',
-                          fontWeight: 'bold',
-                          border: '3px solid #ddd',
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 5,
-                          backgroundColor: '#f2f2f2'
-                        }}
-                        onClick={() => requestSort(key)}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ display: 'flex', alignItems: 'center' }}>
-                            {displayName} {/* Use mapped display name */}
-                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                          </span>
-                          {/* Only show search input for GroupId and Cluster columns */}
-                          {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
-                            <input
-                              type="text"
-                              placeholder={`Search ${displayName}...`}
-                              value={searchFilters[key] || ''}
-                              onChange={(e) => handleSearchChange(key, e.target.value)}
-                              style={{
-                                marginTop: '5px',
-                                padding: '4px',
-                                border: '1px solid #ccc',
-                                borderRadius: '2px',
-                                fontSize: '12px',
-                                width: '100%'
-                              }}
-                            />
-                          )}
-                        </div>
-                      </th>
-                    );
-                  })}
+                  {columnKeys.map((key) => (
+                    <th 
+                      key={key} 
+                      style={{ 
+                        padding: '8px', 
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        border: '3px solid #ddd',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 5,
+                        backgroundColor: '#f2f2f2'
+                      }}
+                      onClick={() => requestSort(key)}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ display: 'flex', alignItems: 'center' }}>
+                          {key}
+                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                        </span>
+                        {/* Only show search input for GroupId and Cluster columns */}
+                        {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
+                          <input
+                            type="text"
+                            placeholder={`Search ${key}...`}
+                            value={searchFilters[key] || ''}
+                            onChange={(e) => handleSearchChange(key, e.target.value)}
+                            style={{
+                              marginTop: '5px',
+                              padding: '4px',
+                              border: '1px solid #ccc',
+                              borderRadius: '2px',
+                              fontSize: '12px',
+                              width: '100%'
+                            }}
+                          />
+                        )}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -764,8 +765,8 @@ const Dashboard = () => {
                       
                       {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
-                        if (key.toLowerCase() === 'comment') {
-                          // If this is the Comment column, render input if row is selected
+                        if (key.toLowerCase() === 'comments') { // Changed from 'comment' to 'comments'
+                          // If this is the Comments column, render input if row is selected
                           return (
                             <td 
                               key={`comment-${actualIndex}-${key}`} 
