@@ -134,8 +134,6 @@ async def get_csv_data_all(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading CSV file: {str(e)}")
 
-
-
 # PUT endpoint to update main CSV file using group_id and pattern as unique key
 @app.put("/csv-data", response_model=dict)
 async def update_csv_data(update_request: UpdateRequest, month: str = Query("january", description="Month name for CSV file")):
@@ -200,11 +198,11 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             # Get the index of the matching row
             row_index = matching_rows.index[0]
             
-            # Check if Decision is "No change" to determine if summary should be updated
-            decision_value = df.at[row_index, 'Decision'].lower() if 'Decision' in df.columns else 'no change'
+            # Check if Decision in the API payload is "No change" to determine if summary should be updated
+            decision_in_payload = new_data.get('Decision', '').lower()
             
-            if decision_value == 'no change':
-                # Count this update for the cluster (using ticket count) only if Decision is "No change"
+            if decision_in_payload == 'no change':
+                # Count this update for the cluster (using ticket count) only if Decision in payload is "No change"
                 cluster_name_lower = cluster_name.lower()
                 if cluster_name_lower not in cluster_ticket_counts:
                     cluster_ticket_counts[cluster_name_lower] = 0
@@ -237,7 +235,7 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             
             updated_rows_count += 1
         
-        # Update summary counts based on cluster information with ticket counts (only for "No change" decisions)
+        # Update summary counts based on cluster information with ticket counts (only for "No change" decisions in payload)
         if cluster_ticket_counts:
             summary_df = pd.read_csv(summary_file_path)
             
@@ -326,6 +324,10 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
+
+
+
+
 
 
 
