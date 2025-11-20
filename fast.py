@@ -200,17 +200,21 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             # Get the index of the matching row
             row_index = matching_rows.index[0]
             
-            # Count this update for the cluster (using ticket count)
-            cluster_name_lower = cluster_name.lower()
-            if cluster_name_lower not in cluster_ticket_counts:
-                cluster_ticket_counts[cluster_name_lower] = 0
-            cluster_ticket_counts[cluster_name_lower] += ticket_count
+            # Check if Decision is "No change" to determine if summary should be updated
+            decision_value = df.at[row_index, 'Decision'].lower() if 'Decision' in df.columns else 'no change'
+            
+            if decision_value == 'no change':
+                # Count this update for the cluster (using ticket count) only if Decision is "No change"
+                cluster_name_lower = cluster_name.lower()
+                if cluster_name_lower not in cluster_ticket_counts:
+                    cluster_ticket_counts[cluster_name_lower] = 0
+                cluster_ticket_counts[cluster_name_lower] += ticket_count
             
             # Update each column in the row (excluding group_id, pattern, and cluster if it was just for counting)
             for col, value in new_data.items():
                 if col not in ['group_id', 'pattern', 'cluster', 'ticket_count']:  # Don't update these columns
                     if col in df.columns:
-                         # Handle type conversion properly to avoid FutureWarning
+                        # Handle type conversion properly to avoid FutureWarning
                         current_dtype = df[col].dtype
                         
                         # If the column is numeric and we're trying to assign a string, convert appropriately
@@ -222,6 +226,9 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
                             except:
                                 # If conversion fails, set to NaN or keep original
                                 df.at[row_index, col] = value
+                        else:
+                            # For non-numeric columns or when value is already numeric, just assign
+                            df.at[row_index, col] = value
                     else:
                         raise HTTPException(
                             status_code=400, 
@@ -230,45 +237,73 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
             
             updated_rows_count += 1
         
-        # Update summary counts based on cluster information with ticket counts
+        # Update summary counts based on cluster information with ticket counts (only for "No change" decisions)
         if cluster_ticket_counts:
             summary_df = pd.read_csv(summary_file_path)
             
             # Validate that summary file has required columns
-            if 'cluster' not in summary_df.columns:
+            if 'Cluster' not in summary_df.columns:
                 raise HTTPException(
                     status_code=400, 
-                    detail="Summary CSV file does not contain a 'cluster' column"
+                    detail="Summary CSV file does not contain a 'Cluster' column"
                 )
             
-            if 'increase' not in summary_df.columns or 'decrease' not in summary_df.columns:
+            if 'Increase' not in summary_df.columns or 'Decrease' not in summary_df.columns:
                 raise HTTPException(
                     status_code=400, 
-                    detail="Summary CSV file must contain 'increase' and 'decrease' columns"
+                    detail="Summary CSV file must contain 'Increase' and 'Decrease' columns"
                 )
+            
+            # Ensure numeric columns are properly typed
+            summary_df['Increase'] = pd.to_numeric(summary_df['Increase'], errors='coerce').fillna(0)
+            summary_df['Decrease'] = pd.to_numeric(summary_df['Decrease'], errors='coerce').fillna(0)
+            if 'Scope Creep Review' in summary_df.columns:
+                summary_df['Scope Creep Review'] = pd.to_numeric(summary_df['Scope Creep Review'], errors='coerce').fillna(0)
             
             # Update counts for each cluster (cluster is unique key in summary)
             for cluster_name, total_ticket_count in cluster_ticket_counts.items():
                 # Find the row for this cluster (cluster is the unique key in summary)
-                cluster_row_idx = summary_df[summary_df['cluster'].astype(str).str.lower() == cluster_name].index
+                cluster_row_idx = summary_df[summary_df['Cluster'].astype(str).str.lower() == cluster_name.lower()].index
                 
                 if len(cluster_row_idx) > 0:
-                    # Update increase and decrease counts using ticket count
-                    # Subtract ticket count from increase, add to decrease
-                    current_increase = summary_df.at[cluster_row_idx[0], 'increase']
-                    current_decrease = summary_df.at[cluster_row_idx[0], 'decrease']
+                    # Get current values and convert to float
+                    current_increase = float(summary_df.at[cluster_row_idx[0], 'Increase'])
+                    current_decrease = float(summary_df.at[cluster_row_idx[0], 'Decrease'])
+                    current_scope_creeep = 0.0
+                    
+                    if 'Scope Creep Review' in summary_df.columns:
+                        current_scope_creeep = float(summary_df.at[cluster_row_idx[0], 'Scope Creep Review'])
                     
                     # Update the counts
-                    summary_df.at[cluster_row_idx[0], 'increase'] = current_increase - total_ticket_count
-                    summary_df.at[cluster_row_idx[0], 'decrease'] = current_decrease + total_ticket_count
+                    new_increase = current_increase - total_ticket_count
+                    new_decrease = current_decrease + total_ticket_count
+                    
+                    summary_df.at[cluster_row_idx[0], 'Increase'] = new_increase
+                    summary_df.at[cluster_row_idx[0], 'Decrease'] = new_decrease
+                    if 'Scope Creep Review' in summary_df.columns:
+                        summary_df.at[cluster_row_idx[0], 'Scope Creep Review'] = total_ticket_count + current_scope_creeep
+                    
+                    # Set status based on increase count
+                    if new_increase > 0:
+                        summary_df.at[cluster_row_idx[0], 'Status'] = "Partially Reviewed"
+                    else:
+                        summary_df.at[cluster_row_idx[0], 'Status'] = "Reviewed"
                 else:
                     # If cluster doesn't exist in summary, create a new row
-                    # This might be a new cluster, so just add decrease count
+                    new_increase = -total_ticket_count  # Subtract ticket count from increase
+                    new_decrease = total_ticket_count   # Add ticket count to decrease
+                    
                     new_row = {
-                        'cluster': cluster_name,
-                        'increase': -total_ticket_count,  # Subtract ticket count from increase
-                        'decrease': total_ticket_count   # Add ticket count to decrease
+                        'Cluster': cluster_name,
+                        'Increase': new_increase,
+                        'Decrease': new_decrease,
+                        'Status': "Reviewed" if new_increase <= 0 else "Partially Reviewed"
                     }
+                    
+                    # Add Scope Creep Review if it exists in the summary file
+                    if 'Scope Creep Review' in summary_df.columns:
+                        new_row['Scope Creep Review'] = float(total_ticket_count)
+                    
                     summary_df = pd.concat([summary_df, pd.DataFrame([new_row])], ignore_index=True)
             
             # Save updated summary file
@@ -291,8 +326,6 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
-
-
 
 
 # PUT endpoint to update CSV file with path parameter
