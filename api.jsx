@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with proper Comments handling)
+// src/Dashboard.jsx (Updated with selected count and header renaming)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -94,15 +94,31 @@ const Dashboard = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  // Header mappings for display names
+  const headerMappings = {
+    'Decision': 'Decision',
+    'Comment': 'Comment',
+    'UpdatedBy': 'Updated By',
+    'UpdatedTime': 'Updated Time',
+    'Cluster': 'Cluster',
+    'Pattern': 'Pattern',
+    'GroupId': 'Group Id',
+    'Status': 'Status',
+    'TicketCount': 'Ticket Count',
+    'Senior Manager': 'Senior Manager',
+    'Cluster Lead': 'Cluster Lead'
+  };
+
   // Extract parameters from URL
   const getParamsFromUrl = () => {
     const searchParams = new URLSearchParams(location.search);
     const cluster = searchParams.get('cluster');
     const monthParam = searchParams.get('month');
-    return { cluster, month: monthParam };
+    const category = searchParams.get('category');
+    return { cluster, month: monthParam, category };
   };
 
-  // Set month from URL parameter (with October as default)
+  // Set month and category from URL parameter (with October as default)
   useEffect(() => {
     const params = getParamsFromUrl();
     setMonth(params.month || 'October'); // Default to October if no month in URL
@@ -116,14 +132,18 @@ const Dashboard = () => {
         setLoading(true);
         setError('');
         
-        // Get cluster from URL parameter
+        // Get cluster and category from URL parameter
         const params = getParamsFromUrl();
         const clusterFromUrl = params.cluster;
+        const categoryFromUrl = params.category;
         
-        // Build API URL with month and cluster parameters
+        // Build API URL with month, cluster, and category parameters
         let apiUrl = `http://localhost:8000/excel-data?month=${encodeURIComponent(month)}`; // Replace with your API endpoint
         if (clusterFromUrl) {
           apiUrl += `&cluster=${encodeURIComponent(clusterFromUrl)}`;
+        }
+        if (categoryFromUrl) {
+          apiUrl += `&category=${encodeURIComponent(categoryFromUrl)}`;
         }
         
         const response = await fetch(apiUrl);
@@ -151,7 +171,7 @@ const Dashboard = () => {
     }
   }, [month, location.search]); // Re-fetch when month or URL search parameters change
 
-  // Apply filters (excluding cluster since it's handled in API)
+  // Apply filters (excluding cluster and category since they're handled in API)
   const filteredData = React.useMemo(() => {
     return data.filter(row => {
       return Object.keys(searchFilters).every(key => {
@@ -227,6 +247,9 @@ const Dashboard = () => {
     
     if (params.cluster) {
       newParams.set('cluster', params.cluster);
+    }
+    if (params.category) {
+      newParams.set('category', params.category);
     }
     if (selectedMonth) {
       newParams.set('month', selectedMonth);
@@ -358,7 +381,7 @@ const Dashboard = () => {
       const newData = [...prevData];
       newData[actualIndex] = {
         ...newData[actualIndex],
-        Comments: newValue // Changed to 'Comments' to match API
+        Comment: newValue
       };
       return newData;
     });
@@ -408,7 +431,7 @@ const Dashboard = () => {
       updatedData[originalIndex] = {
         ...updatedData[originalIndex],
         Decision: bulkDecision,
-        Comments: bulkComment, // Changed to 'Comments' to match API
+        Comment: bulkComment,
         UpdatedBy: 'System User', // Default value since no input field
         UpdatedTime: new Date().toISOString()
       };
@@ -430,21 +453,13 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Check if save button should be enabled
-  const isSaveEnabled = React.useMemo(() => {
-    if (selectedRows.length === 0) return false;
-    
-    // Check if any selected row has been modified
-    return selectedRows.some(originalIndex => changedRows.has(originalIndex));
-  }, [selectedRows, changedRows]);
-
   // Save all changes to MongoDB using your specific API with correct payload structure
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
       setShowLoading(true);
       
-      // Prepare updates array for your specific API with correct payload structure
+      // Prepare updates array for your specific API
       const updates = selectedRows.map(originalIndex => {
         // Get the cluster name for this row
         const clusterName = updatedData[originalIndex]['Cluster'] || 
@@ -477,7 +492,7 @@ const Dashboard = () => {
           TicketCount: ticketCount, // Added TicketCount to payload
            {
             Decision: updatedData[originalIndex].Decision,
-            Comments: updatedData[originalIndex].Comments, // Changed to uppercase 'Comments' to match API
+            comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
             UpdatedTime: new Date().toISOString()
           }
@@ -530,7 +545,7 @@ const Dashboard = () => {
       };
     });
     
-    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload
+    await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
     
     // Update the data in browser memory
     setData(updatedData);
@@ -557,24 +572,26 @@ const Dashboard = () => {
       <h2>Excel Data Dashboard</h2>
       
       {/* Month Dropdown */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <label style={{ fontWeight: 'bold' }}>
-          Select Month:
-        </label>
-        <select
-          value={month}
-          onChange={handleMonthChange}
-          style={{
-            padding: '8px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        >
-          {months.map(m => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>
+            Select Month:
+          </label>
+          <select
+            value={month}
+            onChange={handleMonthChange}
+            style={{
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            {months.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
       </div>
       
       {/* Error Message */}
@@ -591,7 +608,7 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Bulk Edit if Select All is checked, Save All otherwise */}
+      {/* Conditional Button - Show count of selected rows */}
       {isSelectAllChecked() ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
@@ -623,11 +640,11 @@ const Dashboard = () => {
             alignSelf: 'flex-start'
           }}
         >
-          Save All Changes
+          Save All Changes ({selectedRows.length} selected)
         </button>
       )}
       
-      {/* Scrollable Table Container */}
+      {/* Scrollable Table Container with Fixed Header */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
         {month && data.length > 0 ? (
           <div style={{ minWidth: 'max-content' }}>
@@ -665,48 +682,53 @@ const Dashboard = () => {
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
-                  {columnKeys.map((key) => (
-                    <th 
-                      key={key} 
-                      style={{ 
-                        padding: '8px', 
-                        textAlign: 'left',
-                        fontWeight: 'bold',
-                        border: '3px solid #ddd',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 5,
-                        backgroundColor: '#f2f2f2'
-                      }}
-                      onClick={() => requestSort(key)}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ display: 'flex', alignItems: 'center' }}>
-                          {key}
-                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                        </span>
-                        {/* Only show search input for GroupId and Cluster columns */}
-                        {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
-                          <input
-                            type="text"
-                            placeholder={`Search ${key}...`}
-                            value={searchFilters[key] || ''}
-                            onChange={(e) => handleSearchChange(key, e.target.value)}
-                            style={{
-                              marginTop: '5px',
-                              padding: '4px',
-                              border: '1px solid #ccc',
-                              borderRadius: '2px',
-                              fontSize: '12px',
-                              width: '100%'
-                            }}
-                          />
-                        )}
-                      </div>
-                    </th>
-                  ))}
+                  {columnKeys.map((key) => {
+                    // Get the display name for the header
+                    const displayName = headerMappings[key] || key;
+                    
+                    return (
+                      <th 
+                        key={key} 
+                        style={{ 
+                          padding: '8px', 
+                          textAlign: 'left',
+                          fontWeight: 'bold',
+                          border: '3px solid #ddd',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 5,
+                          backgroundColor: '#f2f2f2'
+                        }}
+                        onClick={() => requestSort(key)}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ display: 'flex', alignItems: 'center' }}>
+                            {displayName} {/* Use mapped display name */}
+                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                          </span>
+                          {/* Only show search input for GroupId and Cluster columns */}
+                          {(key.toLowerCase() === 'groupid' || key.toLowerCase() === 'cluster') && (
+                            <input
+                              type="text"
+                              placeholder={`Search ${displayName}...`}
+                              value={searchFilters[key] || ''}
+                              onChange={(e) => handleSearchChange(key, e.target.value)}
+                              style={{
+                                marginTop: '5px',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '2px',
+                                fontSize: '12px',
+                                width: '100%'
+                              }}
+                            />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -747,8 +769,8 @@ const Dashboard = () => {
                       
                       {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
-                        if (key.toLowerCase() === 'comments') {
-                          // If this is the Comments column, render input if row is selected
+                        if (key.toLowerCase() === 'comment') {
+                          // If this is the Comment column, render input if row is selected
                           return (
                             <td 
                               key={`comment-${actualIndex}-${key}`} 
