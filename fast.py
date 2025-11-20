@@ -328,58 +328,195 @@ async def update_csv_data(update_request: UpdateRequest, month: str = Query("jan
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
 
 
-# PUT endpoint to update CSV file with path parameter
-@app.put("/csv-data/{file_path:path}", response_model=dict)
-async def update_csv_data_with_path(file_path: str, update_request: UpdateRequest):
-    # Validate file path
-    if not file_path.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="File must be a CSV file (.csv)")
+
+async def update_csv_data(update_request: UpdateRequest, month: str = Query("january", description="Month name for CSV file")):
+    # Validate month parameter
+    valid_months = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+    ]
     
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"CSV file '{file_path}' not found")
+    if month.lower() not in valid_months:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid month. Valid months are: {', '.join(valid_months)}"
+        )
+    
+    data_file_path = f"{month.lower()}_data.csv"  # Month-based data filename
+    summary_file_path = f"{month.lower()}_summary.csv"  # Month-based summary filename
+    
+    if not os.path.exists(data_file_path):
+        raise HTTPException(status_code=404, detail=f"Data CSV file '{data_file_path}' not found")
+    
+    if not os.path.exists(summary_file_path):
+        raise HTTPException(status_code=404, detail=f"Summary CSV file '{summary_file_path}' not found")
     
     try:
-        # Read the CSV file
-        df = pd.read_csv(file_path)
+        # Read the data CSV file
+        df = pd.read_csv(data_file_path)
         
-        # Validate indices are within range
-        max_index = len(df) - 1
-        for update_row in update_request.updates:
-            if update_row.index < 0 or update_row.index > max_index:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Index {update_row.index} is out of range (0-{max_index})"
-                )
+        # Validate that data file has required columns
+        if 'group_id' not in df.columns or 'pattern' not in df.columns:
+            raise HTTPException(
+                status_code=400, 
+                detail="Data CSV file must contain 'group_id' and 'pattern' columns"
+            )
         
-        # Apply updates
+        # Process the updates and extract cluster information with ticket counts
+        cluster_ticket_counts = {}
+        updated_rows_count = 0
+        
         for update_row in update_request.updates:
-            index = update_row.index
+            group_id = update_row.group_id
+            pattern = update_row.pattern
+            cluster_name = update_row.cluster  # Get cluster from the main object
+            ticket_count = update_row.ticket_count  # Get ticket count from the main object
             new_data = update_row.data  # This should now work correctly
             
-            # Update each column in the row
+            # Find the row with matching group_id and pattern in data CSV
+            matching_rows = df[(df['group_id'].astype(str).str.lower() == group_id.lower()) & 
+                              (df['pattern'].astype(str).str.lower() == pattern.lower())]
+            
+            if len(matching_rows) == 0:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No row found with group_id '{group_id}' and pattern '{pattern}'"
+                )
+            elif len(matching_rows) > 1:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Multiple rows found with group_id '{group_id}' and pattern '{pattern}'"
+                )
+            
+            # Get the index of the matching row
+            row_index = matching_rows.index[0]
+            
+            # Check if Decision in the API payload is "No change" to determine if summary should be updated
+            decision_in_payload = new_data.get('Decision', '').lower()
+            
+            if decision_in_payload == 'no change':
+                # Count this update for the cluster (using ticket count) only if Decision in payload is "No change"
+                cluster_name_lower = cluster_name.lower()
+                if cluster_name_lower not in cluster_ticket_counts:
+                    cluster_ticket_counts[cluster_name_lower] = 0
+                cluster_ticket_counts[cluster_name_lower] += ticket_count
+            
+            # Update each column in the row (excluding group_id, pattern, and cluster if it was just for counting)
             for col, value in new_data.items():
-                if col in df.columns:
-                    df.at[index, col] = value
+                if col not in ['group_id', 'pattern', 'cluster', 'ticket_count']:  # Don't update these columns
+                    if col in df.columns:
+                        # Handle type conversion properly to avoid FutureWarning
+                        current_dtype = df[col].dtype
+                        
+                        # If the column is numeric and we're trying to assign a string, convert appropriately
+                        if pd.api.types.is_numeric_dtype(current_dtype) and not pd.isna(value) and not isinstance(value, (int, float)):
+                            try:
+                                # Try to convert the value to numeric
+                                numeric_value = pd.to_numeric(value, errors='coerce')
+                                df.at[row_index, col] = numeric_value
+                            except:
+                                # If conversion fails, set to NaN or keep original
+                                df.at[row_index, col] = value
+                        else:
+                            # For non-numeric columns or when value is already numeric, just assign
+                            df.at[row_index, col] = value
+                    else:
+                        raise HTTPException(
+                            status_code=400, 
+                            detail=f"Column '{col}' does not exist in the data CSV file"
+                        )
+            
+            updated_rows_count += 1
+        
+        # Update summary counts based on cluster information with ticket counts (only for "No change" decisions in payload)
+        if cluster_ticket_counts:
+            summary_df = pd.read_csv(summary_file_path)
+            
+            # Validate that summary file has required columns
+            if 'Cluster' not in summary_df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Summary CSV file does not contain a 'Cluster' column"
+                )
+            
+            if 'Increase' not in summary_df.columns or 'Decrease' not in summary_df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Summary CSV file must contain 'Increase' and 'Decrease' columns"
+                )
+            
+            # Ensure numeric columns are properly typed
+            summary_df['Increase'] = pd.to_numeric(summary_df['Increase'], errors='coerce').fillna(0)
+            summary_df['Decrease'] = pd.to_numeric(summary_df['Decrease'], errors='coerce').fillna(0)
+            if 'Scope Creep Review' in summary_df.columns:
+                summary_df['Scope Creep Review'] = pd.to_numeric(summary_df['Scope Creep Review'], errors='coerce').fillna(0)
+            
+            # Update counts for each cluster (cluster is unique key in summary)
+            for cluster_name, total_ticket_count in cluster_ticket_counts.items():
+                # Find the row for this cluster (cluster is the unique key in summary)
+                cluster_row_idx = summary_df[summary_df['Cluster'].astype(str).str.lower() == cluster_name.lower()].index
+                
+                if len(cluster_row_idx) > 0:
+                    # Get current values and convert to float
+                    current_increase = float(summary_df.at[cluster_row_idx[0], 'Increase'])
+                    current_decrease = float(summary_df.at[cluster_row_idx[0], 'Decrease'])
+                    current_scope_creeep = 0.0
+                    
+                    if 'Scope Creep Review' in summary_df.columns:
+                        current_scope_creeep = float(summary_df.at[cluster_row_idx[0], 'Scope Creep Review'])
+                    
+                    # Update the counts
+                    new_increase = current_increase - total_ticket_count
+                    new_decrease = current_decrease + total_ticket_count
+                    
+                    summary_df.at[cluster_row_idx[0], 'Increase'] = new_increase
+                    summary_df.at[cluster_row_idx[0], 'Decrease'] = new_decrease
+                    if 'Scope Creep Review' in summary_df.columns:
+                        summary_df.at[cluster_row_idx[0], 'Scope Creep Review'] = total_ticket_count + current_scope_creeep
+                    
+                    # Set status based on increase count
+                    if new_increase > 0:
+                        summary_df.at[cluster_row_idx[0], 'Status'] = "Partially Reviewed"
+                    else:
+                        summary_df.at[cluster_row_idx[0], 'Status'] = "Reviewed"
                 else:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"Column '{col}' does not exist in the CSV file"
-                    )
+                    # If cluster doesn't exist in summary, create a new row
+                    new_increase = -total_ticket_count  # Subtract ticket count from increase
+                    new_decrease = total_ticket_count   # Add ticket count to decrease
+                    
+                    new_row = {
+                        'Cluster': cluster_name,
+                        'Increase': new_increase,
+                        'Decrease': new_decrease,
+                        'Status': "Reviewed" if new_increase <= 0 else "Partially Reviewed"
+                    }
+                    
+                    # Add Scope Creep Review if it exists in the summary file
+                    if 'Scope Creep Review' in summary_df.columns:
+                        new_row['Scope Creep Review'] = float(total_ticket_count)
+                    
+                    summary_df = pd.concat([summary_df, pd.DataFrame([new_row])], ignore_index=True)
+            
+            # Save updated summary file
+            summary_df.to_csv(summary_file_path, index=False)
+            # Clear cache for summary file
+            clear_cache_for_file(summary_file_path)
         
-        # Save the updated DataFrame back to CSV
-        df.to_csv(file_path, index=False)
+        # Save the updated data DataFrame back to CSV
+        df.to_csv(data_file_path, index=False)
         
-        # Clear cache for this file since it was updated
-        clear_cache_for_file(file_path)
+        # Clear cache for both files since they were updated
+        clear_cache_for_file(data_file_path)
         
         return {
-            "message": "CSV file updated successfully",
-            "updated_rows": len(update_request.updates),
-            "file_path": file_path
+            "message": "CSV file updated successfully and summary counts updated",
+            "updated_rows": updated_rows_count,
+            "cluster_ticket_counts": cluster_ticket_counts,
+            "data_file_path": data_file_path,
+            "summary_file_path": summary_file_path
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating CSV file: {str(e)}")
-
 
 # GET endpoint to get monthly summary data (non-paginated) with caching
 @app.get("/summary-data-all", response_model=List[dict])
