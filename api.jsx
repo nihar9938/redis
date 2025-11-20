@@ -1,4 +1,4 @@
-// src/Dashboard.jsx (Updated with selected count and header renaming)
+// src/Dashboard.jsx (Corrected with isSaveEnabled function defined)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
@@ -216,6 +216,14 @@ const Dashboard = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = sortedData.slice(startIndex, endIndex);
+
+  // Check if save button should be enabled
+  const isSaveEnabled = React.useMemo(() => {
+    if (selectedRows.length === 0) return false;
+    
+    // Check if any selected row has been modified
+    return selectedRows.some(originalIndex => changedRows.has(originalIndex));
+  }, [selectedRows, changedRows]);
 
   // Handle page change
   const handlePageChange = (pageNumber) => {
@@ -467,29 +475,16 @@ const Dashboard = () => {
                            updatedData[originalIndex]['CLUSTER'] || 
                            'Unknown';
         
-        // Get the GroupId for this row
-        const groupId = updatedData[originalIndex]['GroupId'] || 
-                       updatedData[originalIndex]['groupid'] || 
-                       updatedData[originalIndex]['GROUPID'] || 
-                       'Unknown';
-        
-        // Get the Pattern for this row
-        const pattern = updatedData[originalIndex]['Pattern'] || 
-                       updatedData[originalIndex]['pattern'] || 
-                       updatedData[originalIndex]['PATTERN'] || 
-                       'Unknown';
-        
-        // Get the TicketCount for this row
-        const ticketCount = updatedData[originalIndex]['TicketCount'] || 
-                           updatedData[originalIndex]['ticketcount'] || 
-                           updatedData[originalIndex]['TICKETCOUNT'] || 
-                           '0';
-        
         return {
-          GroupId: groupId,
-          Pattern: pattern,
+          GroupId: updatedData[originalIndex]['GroupId'] || 
+                   updatedData[originalIndex]['groupid'] || 
+                   updatedData[originalIndex]['GROUPID'] || 
+                   'Unknown',
+          Pattern: updatedData[originalIndex]['Pattern'] || 
+                   updatedData[originalIndex]['pattern'] || 
+                   updatedData[originalIndex]['PATTERN'] || 
+                   'Unknown',
           Cluster: clusterName,
-          TicketCount: ticketCount, // Added TicketCount to payload
            {
             Decision: updatedData[originalIndex].Decision,
             comment: updatedData[originalIndex].Comment, // Note: lowercase 'c' as in your example
