@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Corrected with proper search columns)
+// src/SummaryPage.jsx (Updated with proper styling and blank handling)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -53,13 +53,20 @@ const SummaryPage = () => {
         
         const jsonData = await response.json();
         
-        // Add unique IDs to each row for proper tracking
-        const dataWithIds = jsonData.map((row, index) => ({
-          ...row,
-          __uniqueId__: `${index}_${Date.now()}` // Create unique ID with timestamp
-        }));
+        // Process data to replace empty/null/undefined values with "0"
+        const processedData = jsonData.map(row => {
+          const newRow = {};
+          for (const key in row) {
+            if (row[key] === null || row[key] === undefined || row[key] === '') {
+              newRow[key] = '0';
+            } else {
+              newRow[key] = row[key];
+            }
+          }
+          return newRow;
+        });
         
-        setData(dataWithIds);
+        setData(processedData);
       } catch (error) {
         setError('Error loading data from MongoDB: ' + error.message);
         console.error('Error loading ', error);
@@ -87,7 +94,7 @@ const SummaryPage = () => {
       // Apply search filters
       return Object.keys(searchFilters).every(key => {
         if (!searchFilters[key]) return true;
-        const cellValue = row[key] || '';
+        const cellValue = row[key] || '0'; // Default to '0' if empty
         return cellValue.toString().toLowerCase().includes(searchFilters[key].toLowerCase());
       });
     });
@@ -101,10 +108,10 @@ const SummaryPage = () => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 
-      // Handle empty values
-      if (aValue === '' && bValue === '') return 0;
-      if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
-      if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+      // Handle empty values (treated as '0')
+      if (aValue === '0' && bValue === '0') return 0;
+      if (aValue === '0') return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bValue === '0') return sortConfig.direction === 'asc' ? -1 : 1;
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -170,7 +177,7 @@ const SummaryPage = () => {
   const handleIncreaseClick = (row) => {
     // Find the cluster value in the row
     const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
-    if (clusterValue && month) {
+    if (clusterValue && clusterValue !== '0' && month) {
       // Navigate to dashboard with both cluster and month parameters
       const newParams = new URLSearchParams();
       newParams.set('cluster', clusterValue);
@@ -185,8 +192,8 @@ const SummaryPage = () => {
 
   if (loading && month) return <div>Loading data for {month}...</div>;
 
-  // Get column keys for rendering (excluding unique ID)
-  const columnKeys = Object.keys(data[0] || {}).filter(key => key !== '__uniqueId__');
+  // Get column keys for rendering
+  const columnKeys = Object.keys(data[0] || {});
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -317,7 +324,7 @@ const SummaryPage = () => {
               </thead>
               <tbody>
                 {sortedData.map((row, rowIndex) => {
-                  // Check if this is the "Increase" column
+                  // Check if this is an "Increase" column
                   const isIncreaseColumn = (key) => {
                     return key.toLowerCase().includes('increase');
                   };
@@ -330,6 +337,7 @@ const SummaryPage = () => {
                       }}
                     >
                       {columnKeys.map((key, colIndex) => {
+                        const cellValue = row[key] || '0'; // Default to '0' if empty
                         const isIncreaseCol = isIncreaseColumn(key);
                         
                         return (
@@ -340,12 +348,22 @@ const SummaryPage = () => {
                               border: '3px solid #ddd',
                               verticalAlign: 'top',
                               cursor: isIncreaseCol ? 'pointer' : 'default',
-                              textDecoration: isIncreaseCol ? 'underline' : 'none',
-                              color: isIncreaseCol ? '#1976D2' : 'inherit' // Blue color for increase column
+                              color: isIncreaseCol ? '#1976D2' : 'inherit', // Blue color for increase column
+                              textDecoration: isIncreaseCol ? 'none' : 'none' // Will be underlined on hover
                             }}
                             onClick={isIncreaseCol ? () => handleIncreaseClick(row) : undefined}
+                            onMouseEnter={(e) => {
+                              if (isIncreaseCol) {
+                                e.target.style.textDecoration = 'underline';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (isIncreaseCol) {
+                                e.target.style.textDecoration = 'none';
+                              }
+                            }}
                           >
-                            {row[key] || ''}
+                            {cellValue}
                           </td>
                         );
                       })}
