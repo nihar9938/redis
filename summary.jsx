@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Updated with proper styling and blank handling)
+// src/SummaryPage.jsx (Updated with correct categories and default Alert)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -7,6 +7,7 @@ const SummaryPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [month, setMonth] = useState(''); // Selected month
+  const [category, setCategory] = useState('Alerts'); // Default to Alerts
   const [searchFilters, setSearchFilters] = useState({}); // Search filters for all columns
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [statusFilter, setStatusFilter] = useState(''); // Status filter
@@ -19,13 +20,18 @@ const SummaryPage = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  // Available categories (with Alerts as default)
+  const categories = [
+    'Alerts', 'User Support', 'Manual Task'
+  ];
+
   // Status options
   const statusOptions = [
     'Reviewed', 'Partially Reviewed', 'Not Reviewed'
   ];
 
-  // Extract parameters from URL
-  const getParamsFromUrl = () => {
+  // Extract month from URL
+  const getMonthFromUrl = () => {
     const searchParams = new URLSearchParams(location.search);
     const monthParam = searchParams.get('month');
     return { month: monthParam };
@@ -33,7 +39,7 @@ const SummaryPage = () => {
 
   // Set month from URL parameter
   useEffect(() => {
-    const params = getParamsFromUrl();
+    const params = getMonthFromUrl();
     if (params.month) {
       setMonth(params.month);
     }
@@ -47,8 +53,10 @@ const SummaryPage = () => {
         setLoading(true);
         setError('');
         
-        // Build API URL with month parameter
-        const response = await fetch(`http://localhost:8000/summary-data?month=${encodeURIComponent(month)}`); // Replace with your API endpoint
+        // Build API URL with month and category parameters
+        const apiUrl = `http://localhost:8000/summary-data?month=${encodeURIComponent(month)}&category=${encodeURIComponent(category)}`; // Replace with your API endpoint
+        
+        const response = await fetch(apiUrl);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const jsonData = await response.json();
@@ -78,7 +86,7 @@ const SummaryPage = () => {
     if (month) {
       fetchData();
     }
-  }, [month]); // Re-fetch when month changes
+  }, [month, category]); // Re-fetch when month or category changes
 
   // Apply filters (search and status)
   const filteredData = React.useMemo(() => {
@@ -160,6 +168,12 @@ const SummaryPage = () => {
     });
   };
 
+  // Handle category change
+  const handleCategoryChange = (e) => {
+    const selectedCategory = e.target.value;
+    setCategory(selectedCategory);
+  };
+
   // Handle status filter change
   const handleStatusChange = (e) => {
     setStatusFilter(e.target.value);
@@ -173,15 +187,16 @@ const SummaryPage = () => {
     }));
   };
 
-  // Handle Increase column click - redirect to dashboard with cluster and month parameters
+  // Handle Increase column click - redirect to dashboard with cluster, month, and category parameters
   const handleIncreaseClick = (row) => {
     // Find the cluster value in the row
     const clusterValue = row['Cluster'] || row['cluster'] || row['CLUSTER'] || '';
     if (clusterValue && clusterValue !== '0' && month) {
-      // Navigate to dashboard with both cluster and month parameters
+      // Navigate to dashboard with cluster, month, and category parameters
       const newParams = new URLSearchParams();
       newParams.set('cluster', clusterValue);
       newParams.set('month', month);
+      newParams.set('category', category); // Pass category parameter
       
       history.push({
         pathname: '/dashboard',
@@ -199,26 +214,48 @@ const SummaryPage = () => {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <h2>Summary Page</h2>
       
-      {/* Month Dropdown */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <label style={{ fontWeight: 'bold' }}>
-          Select Month:
-        </label>
-        <select
-          value={month}
-          onChange={handleMonthChange}
-          style={{
-            padding: '8px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Choose a month</option>
-          {months.map(m => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
+      {/* Month and Category Dropdowns */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>
+            Month:
+          </label>
+          <select
+            value={month}
+            onChange={handleMonthChange}
+            style={{
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value="">Select Month</option>
+            {months.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>
+            Category:
+          </label>
+          <select
+            value={category}
+            onChange={handleCategoryChange}
+            style={{
+              padding: '8px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
       </div>
       
       {/* Status Dropdown and Additional Search Bars */}
@@ -374,7 +411,7 @@ const SummaryPage = () => {
             </table>
           </div>
         ) : month ? (
-          <p>No data found for {month}.</p>
+          <p>No data found for {month} and category {category}.</p>
         ) : (
           <p>Please select a month to view summary data.</p>
         )}
