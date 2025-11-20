@@ -1,4 +1,4 @@
-// src/SummaryPage.jsx (Updated with correct categories and default Alert)
+// src/SummaryPage.jsx (Updated with header renaming and aligned dropdowns)
 import React, { useState, useEffect } from 'react';
 import { useHistory, useLocation } from 'react-router-dom'; // For older React Router
 
@@ -29,6 +29,24 @@ const SummaryPage = () => {
   const statusOptions = [
     'Reviewed', 'Partially Reviewed', 'Not Reviewed'
   ];
+
+  // Header mappings for display names
+  const headerMappings = {
+    'Q4Baseline': 'Q4 Baseline',
+    'Decrease': 'Scope Creep Decrease',
+    'Increase': 'Scope Creep Increase',
+    'No Change': 'No Change',
+    'Senior Manager': 'Senior Manager',
+    'Cluster Lead': 'Cluster Lead',
+    'Decision': 'Decision',
+    'Cluster': 'Cluster',
+    'Pattern': 'Pattern',
+    'GroupId': 'Group Id',
+    'Status': 'Status',
+    'Comment': 'Comment',
+    'UpdatedBy': 'Updated By',
+    'UpdatedTime': 'Updated Time'
+  };
 
   // Extract month from URL
   const getMonthFromUrl = () => {
@@ -207,15 +225,24 @@ const SummaryPage = () => {
 
   if (loading && month) return <div>Loading data for {month}...</div>;
 
-  // Get column keys for rendering
+  // Get column keys for rendering (before header mapping)
   const columnKeys = Object.keys(data[0] || {});
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <h2>Summary Page</h2>
       
-      {/* Month and Category Dropdowns */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* Month, Category, and Status Dropdowns in a single row */}
+      <div style={{ 
+        marginBottom: '20px', 
+        display: 'flex', 
+        gap: '15px', 
+        alignItems: 'center', 
+        flexWrap: 'wrap',
+        backgroundColor: '#f0f0f0',
+        padding: '10px',
+        borderRadius: '4px'
+      }}>
         <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
           <label style={{ fontWeight: 'bold' }}>
             Month:
@@ -256,19 +283,15 @@ const SummaryPage = () => {
             ))}
           </select>
         </div>
-      </div>
-      
-      {/* Status Dropdown and Additional Search Bars */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Status Filter:
+        
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>
+            Status:
           </label>
           <select
             value={statusFilter}
             onChange={handleStatusChange}
             style={{
-              width: '100%',
               padding: '8px',
               border: '1px solid #ccc',
               borderRadius: '4px',
@@ -297,6 +320,23 @@ const SummaryPage = () => {
         </div>
       )}
       
+      {/* Save Button - Conditional based on select all state */}
+      <button 
+        onClick={handleBulkSave}
+        style={{
+          marginBottom: '10px',
+          padding: '8px 16px',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          border: '3px solid #4CAF50',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          alignSelf: 'flex-start'
+        }}
+      >
+        Save All Changes
+      </button>
+      
       {/* Scrollable Table Container with Fixed Header */}
       <div style={{ flex: 1, overflow: 'auto', marginBottom: '20px' }}>
         {month && data.length > 0 ? (
@@ -313,57 +353,79 @@ const SummaryPage = () => {
             >
               <thead>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
-                  {columnKeys.map((key) => (
-                    <th 
-                      key={key} 
-                      style={{ 
-                        padding: '8px', 
-                        textAlign: 'left',
-                        fontWeight: 'bold',
-                        border: '3px solid #ddd',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 5,
-                        backgroundColor: '#f2f2f2'
-                      }}
-                      onClick={() => requestSort(key)}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ display: 'flex', alignItems: 'center' }}>
-                          {key}
-                          <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
-                        </span>
-                        {/* Show search input for Senior Manager, Cluster Lead, and Cluster columns */}
-                        {(key.toLowerCase() === 'senior manager' || 
-                          key.toLowerCase() === 'cluster lead' || 
-                          key.toLowerCase() === 'cluster') && (
-                          <input
-                            type="text"
-                            placeholder={`Search ${key}...`}
-                            value={searchFilters[key] || ''}
-                            onChange={(e) => handleSearchChange(key, e.target.value)}
-                            style={{
-                              marginTop: '5px',
-                              padding: '4px',
-                              border: '1px solid #ccc',
-                              borderRadius: '2px',
-                              fontSize: '12px',
-                              width: '100%'
-                            }}
-                          />
-                        )}
-                      </div>
-                    </th>
-                  ))}
+                  {/* Checkbox Column Header - Fixed */}
+                  <th 
+                    style={{ 
+                      padding: '8px', 
+                      textAlign: 'center', 
+                      fontWeight: 'bold',
+                      border: '3px solid #ddd',
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 10,
+                      backgroundColor: '#f2f2f2',
+                      width: '80px'
+                    }}
+                  >
+                    Revision
+                  </th>
+                  {columnKeys.map((key) => {
+                    // Get the display name for the header
+                    const displayName = headerMappings[key] || key;
+                    
+                    return (
+                      <th 
+                        key={key} 
+                        style={{ 
+                          padding: '8px', 
+                          textAlign: 'left',
+                          fontWeight: 'bold',
+                          border: '3px solid #ddd',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 5,
+                          backgroundColor: '#f2f2f2'
+                        }}
+                        onClick={() => requestSort(key)}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ display: 'flex', alignItems: 'center' }}>
+                            {displayName} {/* Use mapped display name */}
+                            <span style={{ marginLeft: '5px' }}>{getSortIndicator(key)}</span>
+                          </span>
+                          {/* Show search input for Senior Manager, Cluster Lead, and Cluster columns */}
+                          {(key.toLowerCase() === 'senior manager' || 
+                            key.toLowerCase() === 'cluster lead' || 
+                            key.toLowerCase() === 'cluster') && (
+                            <input
+                              type="text"
+                              placeholder={`Search ${displayName}...`}
+                              value={searchFilters[key] || ''}
+                              onChange={(e) => handleSearchChange(key, e.target.value)}
+                              style={{
+                                marginTop: '5px',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '2px',
+                                fontSize: '12px',
+                                width: '100%'
+                              }}
+                            />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {sortedData.map((row, rowIndex) => {
                   // Check if this is an "Increase" column
                   const isIncreaseColumn = (key) => {
-                    return key.toLowerCase().includes('increase');
+                    const lowerKey = key.toLowerCase();
+                    return lowerKey.includes('increase') || lowerKey.includes('scope creep increase');
                   };
                   
                   return (
@@ -373,6 +435,29 @@ const SummaryPage = () => {
                         backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9'
                       }}
                     >
+                      {/* Checkbox Column - Fixed */}
+                      <td 
+                        style={{ 
+                          padding: '8px', 
+                          border: '3px solid #ddd',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 9, // Lower than header but higher than content
+                          backgroundColor: rowIndex % 2 === 0 ? 'white' : '#f9f9f9',
+                          width: '80px'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(rowIndex)}
+                          onChange={() => handleCheckboxChange(rowIndex)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      
+                      {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
                         const cellValue = row[key] || '0'; // Default to '0' if empty
                         const isIncreaseCol = isIncreaseColumn(key);
@@ -416,6 +501,128 @@ const SummaryPage = () => {
           <p>Please select a month to view summary data.</p>
         )}
       </div>
+      
+      {/* Pagination Controls */}
+      {month && totalItems > itemsPerPage && (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          gap: '10px',
+          alignSelf: 'center'
+        }}>
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: currentPage === 1 ? '#ccc' : '#2196F3',
+              color: 'white',
+              border: '3px solid #2196F3',
+              borderRadius: '4px',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Previous
+          </button>
+          
+          {/* Page numbers with ellipsis */}
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (currentPage <= 3) {
+              pageNum = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = currentPage - 2 + i;
+            }
+            
+            return (
+              <button
+                key={`page-${pageNum}`}
+                onClick={() => handlePageChange(pageNum)}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: pageNum === currentPage ? '#4CAF50' : '#f0f0f0',
+                  color: pageNum === currentPage ? 'white' : 'black',
+                  border: '3px solid #ccc',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: pageNum === currentPage ? 'bold' : 'normal'
+                }}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+          
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: currentPage === totalPages ? '#ccc' : '#2196F3',
+              color: 'white',
+              border: '3px solid #2196F3',
+              borderRadius: '4px',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Next
+          </button>
+          
+          <div style={{ marginLeft: '10px', fontSize: '14px' }}>
+            Page {currentPage} of {totalItems} ({totalItems} total records)
+          </div>
+        </div>
+      )}
+      
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            width: '400px',
+            maxWidth: '90%',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>
+              Success!
+            </h3>
+            <p style={{ marginBottom: '20px' }}>
+              Data saved successfully to MongoDB!
+            </p>
+            <button
+              onClick={closeSuccessModal}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: '3px solid #4CAF50',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
