@@ -1,16 +1,16 @@
-// src/Dashboard.jsx (Fixed with proper save button and API payload)
+// src/Dashboard.jsx (Updated with individual edits always enabled and revert functionality)
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useHistory } from 'react-router-dom'; // For older React Router
 
 // Custom Input Component to handle React reconciliation issues
-const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isDisabled }) => {
+const CommentInput = ({ value, onChange, placeholder, rowUniqueId, isDisabled }) => {
   const inputRef = useRef(null);
   
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.value = value || '';
     }
-  }, [value, actualIndex]);
+  }, [value, rowUniqueId]);
 
   return (
     <input
@@ -34,14 +34,14 @@ const CommentInput = ({ value, onChange, placeholder, rowIndex, actualIndex, isD
 };
 
 // Custom Dropdown Component for Decision
-const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }) => {
+const DecisionDropdown = ({ value, onChange, rowUniqueId, isDisabled }) => {
   const dropdownRef = useRef(null);
   
   useEffect(() => {
     if (dropdownRef.current) {
       dropdownRef.current.value = value || '';
     }
-  }, [value, actualIndex]);
+  }, [value, rowUniqueId]);
 
   return (
     <select
@@ -70,7 +70,7 @@ const DecisionDropdown = ({ value, onChange, rowIndex, actualIndex, isDisabled }
 const Dashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // No default sort
+  const [sortConfig, setSortConfig] = useState({ key: 'Decision', direction: 'asc' }); // Default sort by Decision ascending
   const [selectedRows, setSelectedRows] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -84,7 +84,7 @@ const Dashboard = () => {
   const [changedRows, setChangedRows] = useState(new Set()); // Track changed rows by unique ID
   const [showLoading, setShowLoading] = useState(false); // Loading screen state
   const [selectAllChecked, setSelectAllChecked] = useState(false); // Track select all state
-  const [individualEditsEnabled, setIndividualEditsEnabled] = useState(true); // Track individual edit state
+  const [originalData, setOriginalData] = useState([]); // Track original data for revert checks
   const location = useLocation(); // For older React Router
   const history = useHistory(); // For navigation
 
@@ -93,21 +93,6 @@ const Dashboard = () => {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
-
-  // Header mappings for display names
-  const headerMappings = {
-    'Decision': 'Decision',
-    'Comments': 'Comments',
-    'UpdatedBy': 'Updated By',
-    'UpdatedTime': 'Updated Time',
-    'Cluster': 'Cluster',
-    'Pattern': 'Pattern',
-    'GroupId': 'Group Id',
-    'Status': 'Status',
-    'TicketCount': 'Ticket Count',
-    'Senior Manager': 'Senior Manager',
-    'Cluster Lead': 'Cluster Lead'
-  };
 
   // Extract parameters from URL
   const getParamsFromUrl = () => {
@@ -158,6 +143,7 @@ const Dashboard = () => {
         }));
         
         setData(dataWithIds);
+        setOriginalData(dataWithIds); // Store original data for revert checks
       } catch (error) {
         setError('Error loading data from MongoDB: ' + error.message);
         console.error('Error loading ', error);
@@ -181,7 +167,7 @@ const Dashboard = () => {
     });
   }, [data, searchFilters]);
 
-  // Sorting function (no default sort)
+  // Sorting function (with Decision prioritization)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.key) return filteredData;
 
@@ -193,6 +179,26 @@ const Dashboard = () => {
       if (aValue === '' && bValue === '') return 0;
       if (aValue === '') return sortConfig.direction === 'asc' ? 1 : -1;
       if (bValue === '') return sortConfig.direction === 'asc' ? -1 : 1;
+
+      // Special handling for Decision column to prioritize "Increase"
+      if (sortConfig.key.toLowerCase() === 'decision') {
+        const aLower = aValue.toString().toLowerCase();
+        const bLower = bValue.toString().toLowerCase();
+        
+        if (sortConfig.direction === 'asc') {
+          // For ascending order: Increase first, then No Change, then Decrease
+          const order = { 'increase': 1, 'no change': 2, 'decrease': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        } else {
+          // For descending order: Decrease first, then No Change, then Increase
+          const order = { 'decrease': 1, 'no change': 2, 'increase': 3 };
+          const aOrder = order[aLower] || 4;
+          const bOrder = order[bLower] || 4;
+          return aOrder - bOrder;
+        }
+      }
 
       // Try to convert to numbers for numeric comparison
       const aNum = Number(aValue);
@@ -221,9 +227,18 @@ const Dashboard = () => {
   const isSaveEnabled = React.useMemo(() => {
     if (selectedRows.length === 0) return false;
     
-    // Check if any selected row has been modified
-    return selectedRows.some(originalIndex => changedRows.has(originalIndex));
-  }, [selectedRows, changedRows]);
+    // Check if any selected row has been modified compared to original data
+    return selectedRows.some(rowUniqueId => {
+      const currentRow = data.find(row => row.__uniqueId__ === rowUniqueId);
+      const originalRow = originalData.find(row => row.__uniqueId__ === rowUniqueId);
+      
+      if (!currentRow || !originalRow) return false;
+      
+      // Compare key fields (Decision and Comment)
+      return currentRow.Decision !== originalRow.Decision || 
+             currentRow.Comment !== originalRow.Comment;
+    });
+  }, [selectedRows, data, originalData]);
 
   // Handle page change
   const handlePageChange = (pageNumber) => {
@@ -294,31 +309,9 @@ const Dashboard = () => {
         decisionValue.toString().toLowerCase() !== 'no change') {
       setSelectedRows(prev => {
         if (prev.includes(actualIndex)) {
-          // Remove from selection
-          const newSelection = prev.filter(i => i !== actualIndex);
-          
-          // If not all rows are selected anymore, enable individual edits
-          if (newSelection.length < currentData.length) {
-            setIndividualEditsEnabled(true);
-          }
-          
-          return newSelection;
+          return prev.filter(i => i !== actualIndex);
         } else {
-          // Add to selection
-          const newSelection = [...prev, actualIndex];
-          
-          // If all selectable rows are now selected, disable individual edits
-          const selectableRows = currentData.filter(row => {
-            const rowDecision = row['Decision'] || row['decision'] || row['DECISION'] || '';
-            return rowDecision.toString().toLowerCase() !== 'decrease' && 
-                   rowDecision.toString().toLowerCase() !== 'no change';
-          }).length;
-          
-          if (newSelection.length === selectableRows) {
-            setIndividualEditsEnabled(false);
-          }
-          
-          return newSelection;
+          return [...prev, actualIndex];
         }
       });
     }
@@ -330,31 +323,26 @@ const Dashboard = () => {
       // Deselect all
       setSelectedRows([]);
       setSelectAllChecked(false);
-      setIndividualEditsEnabled(true); // Enable individual edits when deselecting
       setShowBulkEditModal(false); // Close modal when deselecting
     } else {
       // Select all non-greyed-out rows
-      const selectableRows = [];
-      
-      currentData.forEach((row, index) => {
-        const actualIndex = startIndex + index;
-        const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-        
-        // Only include rows that are not greyed out
-        if (decisionValue.toString().toLowerCase() !== 'decrease' && 
-            decisionValue.toString().toLowerCase() !== 'no change') {
-          selectableRows.push(actualIndex);
-        }
-      });
+      const selectableRows = currentData
+        .filter(row => {
+          const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+          return decisionValue.toString().toLowerCase() !== 'decrease' && 
+                 decisionValue.toString().toLowerCase() !== 'no change';
+        })
+        .map(row => row.__uniqueId__); // Use unique ID
       
       setSelectedRows(selectableRows);
       setSelectAllChecked(true);
-      setIndividualEditsEnabled(false); // Disable individual edits when selecting all
       
-      // Show bulk edit modal when select all is checked
-      setBulkDecision('');
-      setBulkComment('');
-      setShowBulkEditModal(true);
+      // Show bulk edit modal when 5+ rows are selected
+      if (selectableRows.length >= 5) {
+        setBulkDecision('');
+        setBulkComment('');
+        setShowBulkEditModal(true);
+      }
     }
   };
 
@@ -362,58 +350,59 @@ const Dashboard = () => {
   const isSelectAllChecked = () => {
     if (currentData.length === 0) return false;
     
-    const selectableRows = [];
+    const selectableRows = currentData
+      .filter(row => {
+        const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
+        return decisionValue.toString().toLowerCase() !== 'decrease' && 
+               decisionValue.toString().toLowerCase() !== 'no change';
+      })
+      .map(row => row.__uniqueId__); // Use unique ID
     
-    currentData.forEach((row, index) => {
-      const actualIndex = startIndex + index;
-      const decisionValue = row['Decision'] || row['decision'] || row['DECISION'] || '';
-      
-      // Only include rows that are not greyed out
-      if (decisionValue.toString().toLowerCase() !== 'decrease' && 
-          decisionValue.toString().toLowerCase() !== 'no change') {
-        selectableRows.push(actualIndex);
-      }
-    });
+    const allSelected = selectableRows.length > 0 && 
+                        selectableRows.every(id => selectedRows.includes(id)) && 
+                        selectedRows.length === selectableRows.length;
     
-    return selectableRows.length > 0 && 
-           selectableRows.every(index => selectedRows.includes(index)) && 
-           selectedRows.length === selectableRows.length;
+    return allSelected;
   };
 
   // Handle comment input change
-  const handleCommentChange = (rowIndex, event) => {
+  const handleCommentChange = (rowUniqueId, event) => {
     const newValue = event.target.value;
-    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
     
     setData(prevData => {
-      const newData = [...prevData];
-      newData[actualIndex] = {
-        ...newData[actualIndex],
-        Comments: newValue // Changed from 'Comment' to 'Comments'
-      };
-      return newData;
+      return prevData.map(row => {
+        if (row.__uniqueId__ === rowUniqueId) {
+          return {
+            ...row,
+            Comment: newValue
+          };
+        }
+        return row;
+      });
     });
     
     // Mark row as changed
-    setChangedRows(prev => new Set([...prev, actualIndex]));
+    setChangedRows(prev => new Set([...prev, rowUniqueId]));
   };
 
   // Handle decision dropdown change
-  const handleDecisionChange = (rowIndex, event) => {
+  const handleDecisionChange = (rowUniqueId, event) => {
     const newValue = event.target.value;
-    const actualIndex = startIndex + rowIndex; // Calculate actual index in full array
     
     setData(prevData => {
-      const newData = [...prevData];
-      newData[actualIndex] = {
-        ...newData[actualIndex],
-        Decision: newValue
-      };
-      return newData;
+      return prevData.map(row => {
+        if (row.__uniqueId__ === rowUniqueId) {
+          return {
+            ...row,
+            Decision: newValue
+          };
+        }
+        return row;
+      });
     });
     
     // Mark row as changed
-    setChangedRows(prev => new Set([...prev, actualIndex]));
+    setChangedRows(prev => new Set([...prev, rowUniqueId]));
   };
 
   // Handle search filter change
@@ -435,14 +424,17 @@ const Dashboard = () => {
     // Update selected rows with bulk values
     const updatedData = [...data];
     
-    selectedRows.forEach(originalIndex => {
-      updatedData[originalIndex] = {
-        ...updatedData[originalIndex],
-        Decision: bulkDecision,
-        Comments: bulkComment, // Changed from 'Comment' to 'Comments'
-        UpdatedBy: 'System User', // Default value since no input field
-        UpdatedTime: new Date().toISOString()
-      };
+    selectedRows.forEach(rowUniqueId => {
+      const rowIndex = updatedData.findIndex(row => row.__uniqueId__ === rowUniqueId);
+      if (rowIndex !== -1) {
+        updatedData[rowIndex] = {
+          ...updatedData[rowIndex],
+          Decision: bulkDecision,
+          Comment: bulkComment, // Changed from 'Comment' to 'Comments'
+          UpdatedBy: 'System User', // Default value since no input field
+          UpdatedTime: new Date().toISOString()
+        };
+      }
     });
     
     setData(updatedData);
@@ -461,41 +453,31 @@ const Dashboard = () => {
     setError('');
   };
 
-  // Save all changes to MongoDB using your specific API with correct payload structure
+  // Save all changes to MongoDB using your specific API
   const saveDataToMongoDB = async (updatedData) => {
     try {
       // Show loading screen
       setShowLoading(true);
       
       // Prepare updates array for your specific API
-      const updates = selectedRows.map(originalIndex => {
+      const updates = selectedRows.map(rowUniqueId => {
+        // Find the original row by unique ID
+        const originalRow = updatedData.find(row => row.__uniqueId__ === rowUniqueId);
+        
         // Get the cluster name for this row
-        const clusterName = updatedData[originalIndex]['Cluster'] || 
-                           updatedData[originalIndex]['cluster'] || 
-                           updatedData[originalIndex]['CLUSTER'] || 
+        const clusterName = originalRow['Cluster'] || 
+                           originalRow['cluster'] || 
+                           originalRow['CLUSTER'] || 
                            'Unknown';
         
-        // Get the GroupId for this row
-        const groupId = updatedData[originalIndex]['GroupId'] || 
-                       updatedData[originalIndex]['groupid'] || 
-                       updatedData[originalIndex]['GROUPID'] || 
-                       'Unknown';
-        
-        // Get the Pattern for this row
-        const pattern = updatedData[originalIndex]['Pattern'] || 
-                       updatedData[originalIndex]['pattern'] || 
-                       updatedData[originalIndex]['PATTERN'] || 
-                       'Unknown';
-        
         return {
-          GroupId: groupId,
-          Pattern: pattern,
-          Cluster: clusterName,
+          index: rowUniqueId, // Use unique ID as index
            {
-            Decision: updatedData[originalIndex].Decision,
-            Comments: updatedData[originalIndex].Comments, // Changed to 'Comments' (capital C) as per your API
+            Decision: originalRow.Decision,
+            comment: originalRow.Comment, // Changed to lowercase 'c' as in your example
             UpdatedBy: 'System User', // Default value since no input field
-            UpdatedTime: new Date().toISOString()
+            UpdatedTime: new Date().toISOString(),
+            Cluster: clusterName // Include cluster in response body
           }
         };
       });
@@ -538,12 +520,15 @@ const Dashboard = () => {
 
     const updatedData = [...data];
     
-    selectedRows.forEach(originalIndex => {
-      updatedData[originalIndex] = {
-        ...updatedData[originalIndex],
-        UpdatedBy: 'System User', // Default value since no input field
-        UpdatedTime: new Date().toISOString()
-      };
+    selectedRows.forEach(rowUniqueId => {
+      const rowIndex = updatedData.findIndex(row => row.__uniqueId__ === rowUniqueId);
+      if (rowIndex !== -1) {
+        updatedData[rowIndex] = {
+          ...updatedData[rowIndex],
+          UpdatedBy: 'System User', // Default value since no input field
+          UpdatedTime: new Date().toISOString()
+        };
+      }
     });
     
     await saveDataToMongoDB(updatedData); // Save changes to MongoDB using your API with correct payload structure
@@ -551,11 +536,11 @@ const Dashboard = () => {
     // Update the data in browser memory
     setData(updatedData);
     
+    // Update original data for future revert checks
+    setOriginalData(updatedData);
+    
     // Reset states
     setSelectedRows([]);
-    setChangedRows(new Set()); // Clear changed rows after save
-    setSelectAllChecked(false); // Reset select all state
-    setIndividualEditsEnabled(true); // Enable individual edits after save
   };
 
   // Close success modal
@@ -573,26 +558,24 @@ const Dashboard = () => {
       <h2>Excel Data Dashboard</h2>
       
       {/* Month Dropdown */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 'bold' }}>
-            Select Month:
-          </label>
-          <select
-            value={month}
-            onChange={handleMonthChange}
-            style={{
-              padding: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              fontSize: '14px'
-            }}
-          >
-            {months.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <label style={{ fontWeight: 'bold' }}>
+          Select Month:
+        </label>
+        <select
+          value={month}
+          onChange={handleMonthChange}
+          style={{
+            padding: '8px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        >
+          {months.map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
       </div>
       
       {/* Error Message */}
@@ -609,8 +592,8 @@ const Dashboard = () => {
         </div>
       )}
       
-      {/* Conditional Button - Show count of selected rows */}
-      {isSelectAllChecked() ? (
+      {/* Conditional Button - Change All if 5+ rows selected, Save All otherwise */}
+      {selectedRows.length >= 5 ? (
         <button 
           onClick={() => setShowBulkEditModal(true)}
           style={{
@@ -659,7 +642,7 @@ const Dashboard = () => {
                 backgroundColor: 'white' 
               }}
             >
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr style={{ backgroundColor: '#f2f2f2' }}>
                   {/* Checkbox Column Header - Fixed */}
                   <th 
@@ -765,8 +748,8 @@ const Dashboard = () => {
                       
                       {/* Data Columns */}
                       {columnKeys.map((key, colIndex) => {
-                        if (key.toLowerCase() === 'comments') { // Changed from 'comment' to 'comments'
-                          // If this is the Comments column, render input if row is selected
+                        if (key.toLowerCase() === 'comment') {
+                          // If this is the Comment column, render input if row is selected
                           return (
                             <td 
                               key={`comment-${actualIndex}-${key}`} 
@@ -779,11 +762,10 @@ const Dashboard = () => {
                               {isRowSelected ? (
                                 <CommentInput
                                   value={row[key] || ''}
-                                  onChange={(e) => handleCommentChange(rowIndex, e)}
+                                  onChange={(e) => handleCommentChange(row.__uniqueId__, e)} // Use unique ID
                                   placeholder="Enter comment"
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
+                                  rowUniqueId={row.__uniqueId__} // Pass unique ID for reconciliation
+                                  isDisabled={false} // Never disable individual edits
                                 />
                               ) : (
                                 row[key] || ''
@@ -804,10 +786,9 @@ const Dashboard = () => {
                               {isRowSelected ? (
                                 <DecisionDropdown
                                   value={row[key] || ''}
-                                  onChange={(e) => handleDecisionChange(rowIndex, e)}
-                                  rowIndex={rowIndex}
-                                  actualIndex={actualIndex}
-                                  isDisabled={!individualEditsEnabled} // Disable if individual edits are disabled
+                                  onChange={(e) => handleDecisionChange(row.__uniqueId__, e)} // Use unique ID
+                                  rowUniqueId={row.__uniqueId__} // Pass unique ID for reconciliation
+                                  isDisabled={false} // Never disable individual edits
                                 />
                               ) : (
                                 row[key] || ''
